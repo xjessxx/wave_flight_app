@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "324695024314",
+    "project_id": "waveflight-6077c",
+    "storage_bucket": "waveflight-6077c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:324695024314:android:ec68cb4a3270cb41569883",
+        "android_client_info": {
+          "package_name": "com.example.wave_flight_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "324695024314-e5lmjcge9l1eosaaisorcc2qhb8jfo4r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.wave_flight_app",
+            "certificate_hash": "bf6bb881f7ce38f354d65e51ca8f5c4acd20c7ec"
+          }
+        },
+        {
+          "client_id": "324695024314-c1hhloivr6edpnad946mqj6cqec8vuk4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUPz7B2NIFV-RYJEuZfa13wmW4mLrFk0c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "324695024314-c1hhloivr6edpnad946mqj6cqec8vuk4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
