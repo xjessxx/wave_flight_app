@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 Image logoWidget(String imageName) {
+  //brain logo
   return Image.asset(
     imageName,
     fit: BoxFit.fitWidth,
@@ -9,9 +10,12 @@ Image logoWidget(String imageName) {
   );
 }
 
-TextField reusableTextField(String text, IconData icon, bool isPasswordType,
+TextField reusableTextField(
+    String text,
+    IconData icon,
+    bool isPasswordType, //textfield for login pages
     TextEditingController controller,
-    {TextInputAction textInputAction = TextInputAction.next, // Default action
+    {TextInputAction textInputAction = TextInputAction.next,
     Function(String)? onSubmitted,
     Key? givenKey}) {
   return TextField(
@@ -20,8 +24,8 @@ TextField reusableTextField(String text, IconData icon, bool isPasswordType,
     enableSuggestions: !isPasswordType,
     autocorrect: !isPasswordType,
     cursorColor: Colors.white,
-    textInputAction: textInputAction, // Ensures "Enter" behavior is set
-    onSubmitted: onSubmitted, // This should be passed correctly
+    textInputAction: textInputAction,
+    onSubmitted: onSubmitted,
     style: const TextStyle(color: Colors.white),
     decoration: InputDecoration(
       prefixIcon: Icon(icon, color: Colors.white70),
@@ -69,4 +73,58 @@ Container firebaseUIButton(BuildContext context, String title, Function onTap,
       ),
     ),
   );
+}
+
+//pop up for training instructions
+MaterialButton instructionsPopUp ({
+  required BuildContext context,
+  String title = 'Instructions',
+  required Widget content,
+}) {
+  return MaterialButton(
+    onPressed: () {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) => InstructionsDialog(
+          title: title,
+          content: content,
+        ),
+      );
+    },
+    child: Text('Show Instructions'),
+  );
+}
+
+class InstructionsDialog extends StatelessWidget {
+  //class to add custom training dialog
+  final String title;
+  final Widget content;
+  final List<Widget>? actions;
+
+  const InstructionsDialog({
+    super.key,
+    this.title = 'Instructions',
+    required this.content,
+    this.actions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Text(title),
+      content: SingleChildScrollView(
+        child: content,
+      ),
+      actions: actions ??
+          [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Close'),
+            ),
+          ],
+    );
+  }
 }
