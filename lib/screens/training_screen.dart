@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '/reusable_widgets/reusable_widget.dart';
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({super.key});
@@ -11,8 +12,9 @@ class _TrainingScreenState extends State<TrainingScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   bool _hasAnimated = false;
+  bool _showGo = false;
 
-  // Static idle position - CHANGE THESE VALUES to adjust ball/shadow position
+  // Static idle position
   static const double idleBallBottom = 100.0;
   static const double idleShadowBottom = 100.0;
 
@@ -23,7 +25,7 @@ class _TrainingScreenState extends State<TrainingScreen>
     _controller = AnimationController(
       duration: Duration(
           milliseconds:
-              8000), //can be increased to allow more time between ball reload
+              3000), //can be increased to allow more time between ball reload
       vsync: this,
     );
 
@@ -35,6 +37,59 @@ class _TrainingScreenState extends State<TrainingScreen>
         });
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      //pop up on screen load
+      _showInstructionsPopup();
+    });
+  }
+
+  void _showInstructionsPopup() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        // go away after 10 seconds
+        Future.delayed(Duration(seconds: 15), () {
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        });
+
+        return InstructionsDialog(
+          title: 'Thumb Movement Detection',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Welcome to Training Mode!',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 12),
+              Text('• Make sure you are in a calm and quiet environment'),
+              SizedBox(height: 8),
+              Text(
+                  '• After the countdown, Imagine moving your thumb once to swipe the ball'),
+              SizedBox(height: 8),
+              Text(
+                  '• After the task is detected, you will be asked to repeat it on a count of 3'),
+              SizedBox(height: 12),
+              Text(
+                'This message will close in 10 seconds',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -46,6 +101,7 @@ class _TrainingScreenState extends State<TrainingScreen>
   void _triggerJump() {
     setState(() {
       _hasAnimated = true;
+      _showGo = false;
     });
     _controller.reset();
     _controller.forward();
@@ -66,7 +122,7 @@ class _TrainingScreenState extends State<TrainingScreen>
         children: [
           Column(
             children: [
-              // Top target area (basketball hoop area)
+              // Top target area
               Container(
                 height: 150,
                 width: double.infinity,
@@ -88,7 +144,6 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
               ),
 
-              // Main play area (white background - the court)
               Expanded(
                 child: Container(
                   color: Colors.white,
@@ -153,6 +208,26 @@ class _TrainingScreenState extends State<TrainingScreen>
                         ),
                       ),
                     ),
+                    if (_showGo)
+                      Positioned(
+                        left: screenWidth / 2 - 45,
+                        bottom: idleBallBottom + 120,
+                        child: Text(
+                          'GO!',
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: const Color.fromARGB(255, 22, 210, 8),
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 10,
+                                offset: Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 );
               }
@@ -165,9 +240,9 @@ class _TrainingScreenState extends State<TrainingScreen>
               double shadowBlur;
               double ballScale;
 
-              if (animationProgress <= 0.5) {
+              if (animationProgress <= 0.33) {
                 // SHOOTING PHASE
-                final shootProgress = animationProgress / 0.5;
+                final shootProgress = animationProgress / 0.33;
 
                 final t = shootProgress;
                 final forwardProgress = t;
@@ -188,7 +263,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 shadowOpacity = 0.5 - (shootProgress * 0.4);
                 shadowSize = 100.0 - (shootProgress * 60);
                 shadowBlur = 25.0 - (shootProgress * 15);
-              } else if (animationProgress <= 0.875) {
+              } else if (animationProgress <= 0.66) {
                 // PAUSE PHASE - ball is behind wall
                 ballBottom = screenHeight + 100;
                 ballScale = 0.5;
@@ -197,7 +272,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 shadowBlur = 10.0;
               } else {
                 // FALLING PHASE
-                final fallProgress = (animationProgress - 0.875) / 0.125;
+                final fallProgress = (animationProgress - 0.66) / 0.34;
 
                 // Calculate where the ball was at the top
                 final topPosition = screenHeight - 50;
@@ -214,7 +289,7 @@ class _TrainingScreenState extends State<TrainingScreen>
 
               return Stack(
                 children: [
-                  // Shadow (on ground)
+                  // Shadow
                   if (animationProgress <= 0.6 || animationProgress > 0.65)
                     Positioned(
                       left: screenWidth / 2 - (shadowSize / 2),
@@ -235,7 +310,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                       ),
                     ),
 
-                  // Ball (hidden during pause phase)
+                  // Ball
                   if (animationProgress <= 0.6 || animationProgress > 0.65)
                     Positioned(
                       left: screenWidth / 2 - 50,
@@ -268,12 +343,61 @@ class _TrainingScreenState extends State<TrainingScreen>
                         ),
                       ),
                     ),
+                  if (animationProgress > 0.66 || _showGo)
+                    Positioned(
+                      left: screenWidth / 2 - 25,
+                      bottom: _showGo ? idleBallBottom + 120 : ballBottom + 120,
+                      child: () {
+                        String text;
+
+                        if (_showGo) {
+                          text = 'GO!';
+                        } else {
+                          final fallProgress =
+                              (animationProgress - 0.66) / 0.34;
+
+                          if (fallProgress < 0.40) {
+                            text = '3';
+                          } else if (fallProgress < 0.7) {
+                            text = '2';
+                          } else if (fallProgress < 0.99) {
+                            text = '1';
+                          } else {
+                            text = 'GO!';
+                            // Set flag when we reach GO!
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() {
+                                  _showGo = true;
+                                });
+                              }
+                            });
+                          }
+                        }
+
+                        return Text(
+                          text,
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: const Color.fromARGB(255, 28, 61, 88),
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 10,
+                                offset: Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                        );
+                      }(),
+                    ),
                 ],
               );
             },
           ),
 
-          // Trigger button (bottom right)
+          // Trigger button )
           Positioned(
             bottom: 30,
             right: 30,
