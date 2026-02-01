@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wave_flight_app/services/bci_service.dart';
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({super.key});
@@ -12,6 +13,8 @@ class _TrainingScreenState extends State<TrainingScreen>
   late AnimationController _controller;
   bool _hasAnimated = false;
   bool _showGo = false;
+  final BCIService _bciService = BCIService.instance;
+  bool _bciEnabled = false;
 
   // Static idle position
   static const double idleBallBottom = 100.0;
@@ -40,9 +43,11 @@ class _TrainingScreenState extends State<TrainingScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       //pop up on screen load
       _showInstructionsPopup();
+       _setupBCIDetection();
     });
   }
 
+  
   void _showInstructionsPopup() {
     showDialog(
       context: context,
@@ -132,6 +137,8 @@ class _TrainingScreenState extends State<TrainingScreen>
     );
   }
 
+  
+
   Widget _buildInstructionItem({required IconData icon, required String text}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,9 +155,47 @@ class _TrainingScreenState extends State<TrainingScreen>
     );
   }
 
+  void _setupBCIDetection() async {
+    // Setup trigger callback
+    _bciService.onTriggerDetected = (trigger, confidence) {
+      if (trigger && !_hasAnimated && mounted) {
+        print('BCI Trigger detected! Confidence: ${(confidence * 100).toStringAsFixed(0)}%');
+        _triggerJump(); // Automatically trigger the ball animation
+      }
+    };
+    
+    // Start BCI detection
+    final success = await _bciService.startDetection();
+    
+    if (mounted) {
+      setState(() {
+        _bciEnabled = success;
+      });
+      
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(' BCI Detection Active - Imagine thumb movement to trigger'),
+            backgroundColor: Color(0xFF4A90E2),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ BCI not connected - Using manual trigger'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
+    _bciService.stopDetection();
     super.dispose();
   }
 
@@ -533,31 +578,86 @@ class _TrainingScreenState extends State<TrainingScreen>
             },
           ),
 
-          // Trigger button
-          Positioned(
-            bottom: 30,
-            right: 30,
-            child: ElevatedButton(
-              onPressed: _triggerJump,
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                backgroundColor: Color(0xFF4A90E2),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
+          // Trigger button - only if bci not attached
+          if (!_bciEnabled)
+            Positioned(
+              bottom: 30,
+              right: 30,
+              child: Container(
+                decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF4A90E2).withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
                 ),
-              ),
-              child: Text(
-                'TRIGGER',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
+                child: ElevatedButton(
+                  onPressed: _triggerJump,
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                    backgroundColor: Color(0xFF4A90E2),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: Text(
+                    'MANUAL TRIGGER',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+          
+          // BCI Status Indicator 
+          if (_bciEnabled)
+            Positioned(
+              bottom: 30,
+              right: 30,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Color(0xFF4A90E2), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF4A90E2).withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.psychology,
+                      color: Color(0xFF4A90E2),
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'BCI ACTIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

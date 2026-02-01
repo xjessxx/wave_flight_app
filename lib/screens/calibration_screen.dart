@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:wave_flight_app/services/bci_service.dart';
 
 /// Simplified Calibration Screen - Baseline Only
 ///
@@ -21,10 +22,13 @@ class _CalibrationScreenState extends State<CalibrationScreen>
   Timer? _phaseTimer;
   int _secondsRemaining = 0;
   bool _isCollecting = false;
+  int _progressPercentage = 0;
 
   // Animation for focus dot
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+
+   final BCIService _bciService = BCIService.instance;
 
   @override
   void initState() {
@@ -41,6 +45,21 @@ class _CalibrationScreenState extends State<CalibrationScreen>
     );
 
     _pulseController.repeat(reverse: true);
+
+   // setup BCI callback
+    _bciService.onCalibrationProgress = (progress) {
+      if (mounted) {
+        setState(() {
+          _progressPercentage = progress;
+          _secondsRemaining = ((60 * (100 - progress)) / 100).round();
+        });
+
+        // Auto-complete when BCI finishes
+        if (progress >= 100) {
+          _onBaselineComplete();
+        }
+      }
+    };
   }
 
   @override
@@ -52,12 +71,33 @@ class _CalibrationScreenState extends State<CalibrationScreen>
 
   // ========== CALIBRATION CONTROL ==========
 
-  void _startBaseline() {
+  Future<void> _startBaseline() async {
     setState(() {
       _currentPhase = CalibrationPhase.baseline;
       _secondsRemaining = 60; // 60 second baseline
       _isCollecting = true;
+      _progressPercentage = 0;
     });
+
+    // Start BCI collection
+    final success = await _bciService.startCalibration();
+
+    if (!success) {
+      // Show error if BCI connection failed
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to connect to BCI system'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _currentPhase = CalibrationPhase.introduction;
+          _isCollecting = false;
+        });
+      }
+    }
+  
 
     // Start countdown
     _phaseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -70,9 +110,6 @@ class _CalibrationScreenState extends State<CalibrationScreen>
         }
       });
     });
-
-    // TODO: Call BCI service to start baseline collection
-    // Example: bciBluetooth.startBaseline();
   }
 
   void _onBaselineComplete() {
@@ -359,20 +396,20 @@ class _CalibrationScreenState extends State<CalibrationScreen>
 
         const SizedBox(height: 40),
 
-        // Progress bar
+        // Progress bar - with BCI
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Column(
             children: [
               LinearProgressIndicator(
-                value: 1 - (_secondsRemaining / 60),
+                value: _progressPercentage / 100,
                 backgroundColor: Colors.grey[800],
                 color: const Color(0xFF4A90E2),
                 minHeight: 8,
               ),
               const SizedBox(height: 8),
               Text(
-                '${(((60 - _secondsRemaining) / 60) * 100).toStringAsFixed(0)}% Complete',
+                '$_progressPercentage% Complete',
                 style: const TextStyle(color: Colors.white60, fontSize: 14),
               ),
             ],
