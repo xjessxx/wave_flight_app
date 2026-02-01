@@ -26,7 +26,7 @@ class SigninScreenState extends State<SigninScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content:
-              Text('Fields cannot be left blank. New to UPick? Sign up below!'),
+              Text('Fields cannot be left blank. New to WaveFlight? Sign up below!'),
           duration: Duration(seconds: 2),
         ),
       );

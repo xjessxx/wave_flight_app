@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '/reusable_widgets/reusable_widget.dart';
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({super.key});
@@ -25,7 +24,7 @@ class _TrainingScreenState extends State<TrainingScreen>
     _controller = AnimationController(
       duration: Duration(
           milliseconds:
-              3000), //can be increased to allow more time between ball reload
+              4500), //can be increased to allow more time between ball reload
       vsync: this,
     );
 
@@ -47,48 +46,105 @@ class _TrainingScreenState extends State<TrainingScreen>
   void _showInstructionsPopup() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        // go away after 10 seconds
+        // Auto-dismiss after 15 seconds
         Future.delayed(Duration(seconds: 15), () {
           if (Navigator.canPop(context)) {
             Navigator.of(context).pop();
           }
         });
 
-        return InstructionsDialog(
-          title: 'Thumb Movement Detection',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome to Training Mode!',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        return Dialog(
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.psychology,
+                    size: 60, color: Color(0xFF4A90E2)),
+                const SizedBox(height: 16),
+                const Text(
+                  'Thumb Movement Detection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              SizedBox(height: 12),
-              Text('• Make sure you are in a calm and quiet environment'),
-              SizedBox(height: 8),
-              Text(
-                  '• After the countdown, Imagine moving your thumb once to swipe the ball'),
-              SizedBox(height: 8),
-              Text(
-                  '• After the task is detected, you will be asked to repeat it on a count of 3'),
-              SizedBox(height: 12),
-              Text(
-                'This message will close in 10 seconds',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey[600],
+                const SizedBox(height: 24),
+
+                // Instructions container
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900],
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: const Color(0xFF4A90E2), width: 2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInstructionItem(
+                        icon: Icons.self_improvement,
+                        text:
+                            'Make sure you are in a calm and quiet environment',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInstructionItem(
+                        icon: Icons.timer,
+                        text:
+                            'After the countdown, imagine moving your thumb once to swipe the ball',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInstructionItem(
+                        icon: Icons.repeat,
+                        text:
+                            'After the task is detected, you will be asked to repeat it on a count of 3',
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 20),
+
+                // Timer countdown text
+                Text(
+                  'This message will close in 15 seconds',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildInstructionItem({required IconData icon, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: const Color(0xFF4A90E2), size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white70, fontSize: 15),
+          ),
+        ),
+      ],
     );
   }
 
@@ -117,36 +173,110 @@ class _TrainingScreenState extends State<TrainingScreen>
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Color(0xFF1a1a1a),
       body: Stack(
         children: [
           Column(
             children: [
-              // Top target area
+              // Top target area - Tunnel Effect
               Container(
                 height: 150,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF1a1a2e),
+                      Color(0xFF16213e),
+                    ],
+                  ),
                   border: Border(
-                    bottom: BorderSide(color: Colors.black, width: 3),
+                    bottom: BorderSide(color: Color(0xFF4A90E2), width: 3),
                   ),
-                ),
-                child: Center(
-                  child: Text(
-                    'swipe the ball over here',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF4A90E2).withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: Offset(0, 5),
                     ),
-                  ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    // Tunnel circle
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Color(0xFF0a0a0a),
+                              Color(0xFF16213e),
+                            ],
+                            stops: [0.5, 1.0],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF4A90E2).withValues(alpha: 0.4),
+                              blurRadius: 30,
+                              spreadRadius: -5,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Arched text above tunnel
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.arrow_downward_rounded,
+                            color: Color(0xFF4A90E2),
+                            size: 32,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'swipe the ball',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            'through here',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF4A90E2),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
               Expanded(
                 child: Container(
-                  color: Colors.white,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFF1a1a1a),
+                        Color(0xFF0f0f0f),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -171,7 +301,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                           borderRadius: BorderRadius.circular(100),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.5),
+                              color: Colors.black.withValues(alpha: 0.5),
                               blurRadius: 25.0,
                               spreadRadius: 5,
                             ),
@@ -200,9 +330,9 @@ class _TrainingScreenState extends State<TrainingScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 15,
-                              offset: Offset(5, 5),
+                              color: Color(0xFF4A90E2).withValues(alpha: 0.5),
+                              blurRadius: 25,
+                              offset: Offset(0, 10),
                             ),
                           ],
                         ),
@@ -217,12 +347,12 @@ class _TrainingScreenState extends State<TrainingScreen>
                           style: TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
-                            color: const Color.fromARGB(255, 22, 210, 8),
+                            color: Color(0xFF4A90E2),
                             shadows: [
                               Shadow(
-                                color: Colors.black26,
-                                blurRadius: 10,
-                                offset: Offset(2, 2),
+                                color: Color(0xFF4A90E2).withValues(alpha: 0.8),
+                                blurRadius: 20,
+                                offset: Offset(0, 0),
                               ),
                             ],
                           ),
@@ -240,9 +370,9 @@ class _TrainingScreenState extends State<TrainingScreen>
               double shadowBlur;
               double ballScale;
 
-              if (animationProgress <= 0.33) {
+              if (animationProgress <= 0.40) {
                 // SHOOTING PHASE
-                final shootProgress = animationProgress / 0.33;
+                final shootProgress = animationProgress / 0.40;
 
                 final t = shootProgress;
                 final forwardProgress = t;
@@ -263,7 +393,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 shadowOpacity = 0.5 - (shootProgress * 0.4);
                 shadowSize = 100.0 - (shootProgress * 60);
                 shadowBlur = 25.0 - (shootProgress * 15);
-              } else if (animationProgress <= 0.66) {
+              } else if (animationProgress <= 0.55) {
                 // PAUSE PHASE - ball is behind wall
                 ballBottom = screenHeight + 100;
                 ballScale = 0.5;
@@ -272,7 +402,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 shadowBlur = 10.0;
               } else {
                 // FALLING PHASE
-                final fallProgress = (animationProgress - 0.66) / 0.34;
+                final fallProgress = (animationProgress - 0.55) / 0.45;
 
                 // Calculate where the ball was at the top
                 final topPosition = screenHeight - 50;
@@ -290,7 +420,7 @@ class _TrainingScreenState extends State<TrainingScreen>
               return Stack(
                 children: [
                   // Shadow
-                  if (animationProgress <= 0.6 || animationProgress > 0.65)
+                  if (animationProgress <= 0.40 || animationProgress > 0.55)
                     Positioned(
                       left: screenWidth / 2 - (shadowSize / 2),
                       bottom: idleShadowBottom,
@@ -301,7 +431,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                           borderRadius: BorderRadius.circular(100),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(shadowOpacity),
+                              color: Colors.black.withValues(alpha: shadowOpacity),
                               blurRadius: shadowBlur,
                               spreadRadius: 5,
                             ),
@@ -311,7 +441,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                     ),
 
                   // Ball
-                  if (animationProgress <= 0.6 || animationProgress > 0.65)
+                  if (animationProgress <= 0.40 || animationProgress > 0.55)
                     Positioned(
                       left: screenWidth / 2 - 50,
                       bottom: ballBottom,
@@ -334,36 +464,42 @@ class _TrainingScreenState extends State<TrainingScreen>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 15,
-                                offset: Offset(5, 5),
+                                color: Color(0xFF4A90E2).withValues(alpha: 0.4),
+                                blurRadius: 20,
+                                offset: Offset(0, 8),
                               ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  if (animationProgress > 0.66 || _showGo)
+                  if (animationProgress > 0.55 || _showGo)
                     Positioned(
                       left: screenWidth / 2 - 25,
                       bottom: _showGo ? idleBallBottom + 120 : ballBottom + 120,
                       child: () {
                         String text;
+                        Color textColor;
 
                         if (_showGo) {
                           text = 'GO!';
+                          textColor = Color(0xFF4A90E2);
                         } else {
                           final fallProgress =
-                              (animationProgress - 0.66) / 0.34;
+                              (animationProgress - 0.55) / 0.45;
 
                           if (fallProgress < 0.40) {
                             text = '3';
+                            textColor = Colors.white70;
                           } else if (fallProgress < 0.7) {
                             text = '2';
+                            textColor = Colors.white70;
                           } else if (fallProgress < 0.99) {
                             text = '1';
+                            textColor = Colors.white70;
                           } else {
                             text = 'GO!';
+                            textColor = Color(0xFF4A90E2);
                             // Set flag when we reach GO!
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (mounted) {
@@ -380,12 +516,12 @@ class _TrainingScreenState extends State<TrainingScreen>
                           style: TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
-                            color: const Color.fromARGB(255, 28, 61, 88),
+                            color: textColor,
                             shadows: [
                               Shadow(
-                                color: Colors.black26,
-                                blurRadius: 10,
-                                offset: Offset(2, 2),
+                                color: textColor.withValues(alpha: 0.6),
+                                blurRadius: 15,
+                                offset: Offset(0, 0),
                               ),
                             ],
                           ),
@@ -397,7 +533,7 @@ class _TrainingScreenState extends State<TrainingScreen>
             },
           ),
 
-          // Trigger button )
+          // Trigger button
           Positioned(
             bottom: 30,
             right: 30,
@@ -405,9 +541,9 @@ class _TrainingScreenState extends State<TrainingScreen>
               onPressed: _triggerJump,
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                backgroundColor: Colors.blue,
+                backgroundColor: Color(0xFF4A90E2),
                 foregroundColor: Colors.white,
-                elevation: 5,
+                elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
@@ -417,6 +553,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
                 ),
               ),
             ),

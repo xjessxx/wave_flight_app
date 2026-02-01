@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:wave_flight_app/screens/signin_screen.dart';
-import 'package:wave_flight_app/screens/training_screen.dart';
+
 
 //placeholder page for getting baseline
 
@@ -16,28 +15,32 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('BCI For Accessibility'),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton(
-              child: Text("Go to Training"),
+              child: const Text("Calibration"),
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => TrainingScreen()),
-                );
+                Navigator.pushNamed(context, '/calibration');
               },
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             ElevatedButton(
-              child: Text("Logout"),
+              child: const Text("Training"),
+              onPressed: () {
+                Navigator.pushNamed(context, '/training');
+              },
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              child: const Text("Logout"),
               onPressed: () {
                 FirebaseAuth.instance.signOut().then((value) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => SigninScreen()),
-                  );
+                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
                 });
               },
             ),
