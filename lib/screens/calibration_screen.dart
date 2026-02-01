@@ -14,7 +14,6 @@ class CalibrationScreen extends StatefulWidget {
 
 class _CalibrationScreenState extends State<CalibrationScreen>
     with SingleTickerProviderStateMixin {
-
   // Calibration state
   CalibrationPhase _currentPhase = CalibrationPhase.introduction;
 
@@ -103,7 +102,7 @@ class _CalibrationScreenState extends State<CalibrationScreen>
             const SizedBox(height: 16),
             const Text(
               'Great job! Your baseline has been recorded.\n\n'
-                  'Now you can start training with motor imagery.',
+              'Now you can start training with motor imagery.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16),
             ),
