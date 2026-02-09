@@ -4,6 +4,7 @@ import 'screens/signin_screen.dart';
 import 'screens/calibration_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/training_screen.dart';
+import 'services/bci_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,8 +12,39 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+   
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+
+    @override
+  void initState() {
+    super.initState();
+    // Initialize BCI when app starts
+    _initializeBCI();
+  }
+
+  Future<void> _initializeBCI() async {
+    print('🧠 Initializing BCI system...');
+    
+    // Wait a moment for the app to fully load
+    await Future.delayed(Duration(seconds: 1));
+    
+    final success = await BCIService.instance.initialize();
+    
+    if (success) {
+      print('BCI system initialized successfully'); //this nbeeds to eb the only place this is happening
+    } else {
+      print('BCI initialization failed - check Python server');
+      print('   Run: python bci_flutter_bridge.py');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:wave_flight_app/services/bci_service.dart';
+import 'dart:async';
+import 'package:http/http.dart' as http;
+
+// TODO: make devices page
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({super.key});
@@ -15,6 +19,13 @@ class _TrainingScreenState extends State<TrainingScreen>
   bool _showGo = false;
   final BCIService _bciService = BCIService.instance;
   bool _bciEnabled = false;
+  int _countdownNumber = 3;
+  bool _showCountdown = false;
+  Timer? _countdownTimer;
+  Timer? _restTimer;
+  bool _trainingActive = false;
+  int _currentTrial = 0;
+  final int _totalTrials = 20;
 
   // Static idle position
   static const double idleBallBottom = 100.0;
@@ -37,17 +48,32 @@ class _TrainingScreenState extends State<TrainingScreen>
         setState(() {
           _hasAnimated = false;
         });
+
+        // After animation completes, wait 3 seconds then run next trial
+        if (_trainingActive && _currentTrial < _totalTrials) {
+          print('Rest period (3 seconds)...');
+          _restTimer = Timer(Duration(seconds: 3), () {
+            _runNextTrial(); // Automatically start next trial
+          });
+        } else if (_currentTrial >= _totalTrials) {
+          // Training complete
+          Future.delayed(Duration(seconds: 2), () {
+            _onTrainingComplete();
+          });
+        }
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       //pop up on screen load
       _showInstructionsPopup();
-       _setupBCIDetection();
+      _startTrainingSession();
+      Future.delayed(Duration(seconds: 16), () {
+        // After instruction popup closes
+      });
     });
   }
 
-  
   void _showInstructionsPopup() {
     showDialog(
       context: context,
@@ -111,7 +137,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                       _buildInstructionItem(
                         icon: Icons.repeat,
                         text:
-                            'After the task is detected, you will be asked to repeat it on a count of 3',
+                            'The ball will launch automatically, but it is important you imagine each time',
                       ),
                     ],
                   ),
@@ -137,8 +163,6 @@ class _TrainingScreenState extends State<TrainingScreen>
     );
   }
 
-  
-
   Widget _buildInstructionItem({required IconData icon, required String text}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,35 +179,37 @@ class _TrainingScreenState extends State<TrainingScreen>
     );
   }
 
-  void _setupBCIDetection() async {
-    // Setup trigger callback
-    _bciService.onTriggerDetected = (trigger, confidence) {
-      if (trigger && !_hasAnimated && mounted) {
-        print('BCI Trigger detected! Confidence: ${(confidence * 100).toStringAsFixed(0)}%');
-        _triggerJump(); // Automatically trigger the ball animation
-      }
-    };
-    
-    // Start BCI detection
-    final success = await _bciService.startDetection();
-    
+  Future<void> _startTrainingSession() async {
+    print('🎓 Starting training session...');
+
+    // Call Python to start training
+    final success = await _bciService.startTraining();
+
     if (mounted) {
       setState(() {
+        _trainingActive = success;
         _bciEnabled = success;
       });
-      
+
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(' BCI Detection Active - Imagine thumb movement to trigger'),
+            content: Text('Training Session Started'),
             backgroundColor: Color(0xFF4A90E2),
             duration: Duration(seconds: 3),
           ),
         );
+
+        // Start initial countdown after instructions close (16 seconds)
+        Future.delayed(Duration(seconds: 16), () {
+          if (mounted && _trainingActive) {
+            _runNextTrial();
+          }
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('⚠️ BCI not connected - Using manual trigger'),
+            content: Text('Training failed to start - check Python server'),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 3),
           ),
@@ -192,20 +218,148 @@ class _TrainingScreenState extends State<TrainingScreen>
     }
   }
 
+  void _runNextTrial() {
+    if (!_trainingActive || _currentTrial >= _totalTrials) {
+      return;
+    }
+
+    setState(() {
+      _currentTrial++;
+    });
+
+    print('🧠 Trial $_currentTrial/$_totalTrials - Starting countdown');
+
+    // Show countdown before animation
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    setState(() {
+      _showCountdown = true;
+      _countdownNumber = 3;
+    });
+
+    // Countdown
+    _countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_countdownNumber > 1) {
+        setState(() {
+          _countdownNumber--;
+        });
+      } else if (_countdownNumber == 1) {
+        setState(() {
+          _countdownNumber = 0; // 0 = Go
+        });
+      } else {
+        timer.cancel();
+
+        Future.delayed(Duration(milliseconds: 500), () {
+          setState(() {
+            _showCountdown = false;
+          });
+
+          // Trigger animation AND notify Python to collect data
+          _triggerJump();
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
     _controller.dispose();
     _bciService.stopDetection();
+    _countdownTimer?.cancel();
+    _restTimer?.cancel();
     super.dispose();
   }
 
-  void _triggerJump() {
+  void _triggerJump() async {
     setState(() {
       _hasAnimated = true;
       _showGo = false;
     });
     _controller.reset();
     _controller.forward();
+
+    // Notify Python that animation started - collection trigger
+    if (_trainingActive) {
+      try {
+        final response = await http.post(
+          Uri.parse(
+              'http://10.0.2.2:5000/training/trial_start'), // Android emulator ip - to b changed to real phone eventually
+        );
+
+        if (response.statusCode == 200) {
+          print(
+              'Python collecting data for trial $_currentTrial/$_totalTrials');
+        } else {
+          print('Python not ready: ${response.body}');
+        }
+      } catch (e) {
+        print('Failed to notify Python: $e');
+      }
+    }
+  }
+
+  void _onTrainingComplete() {
+    // re-direct when done - probably to devices page to be made
+    setState(() {
+      _trainingActive = false;
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Color(0xFF4A90E2), width: 2),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 32),
+            SizedBox(width: 12),
+            Text(
+              'Training Complete!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Successfully collected $_currentTrial trials!\n\n'
+              'Your classifier has been trained.\n\n'
+              'The system can now attempt to detect your motor imagery in real-time.',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, '/home');
+            },
+            child: Text(
+              'Continue to Home',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4A90E2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   double _calculateArcHeight(double progress) {
@@ -388,7 +542,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                         left: screenWidth / 2 - 45,
                         bottom: idleBallBottom + 120,
                         child: Text(
-                          'GO!',
+                          'GO',
                           style: TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
@@ -400,6 +554,78 @@ class _TrainingScreenState extends State<TrainingScreen>
                                 offset: Offset(0, 0),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                    // initial countdown
+                    if (_showCountdown && !_hasAnimated)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: idleBallBottom + 150, // Above the idle ball
+                        child: Center(
+                          child: Container(
+                            width: 180,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: 0.8),
+                              border: Border.all(
+                                color: _countdownNumber == 0
+                                    ? Color(0xFF4A90E2)
+                                    : Colors.white70,
+                                width: 4,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_countdownNumber == 0
+                                          ? Color(0xFF4A90E2)
+                                          : Colors.white70)
+                                      .withValues(alpha: 0.6),
+                                  blurRadius: 30,
+                                  spreadRadius: 5,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _countdownNumber > 0
+                                        ? '$_countdownNumber'
+                                        : 'GO',
+                                    style: TextStyle(
+                                      fontSize: _countdownNumber == 0 ? 56 : 80,
+                                      fontWeight: FontWeight.bold,
+                                      color: _countdownNumber == 0
+                                          ? Color(0xFF4A90E2)
+                                          : Colors.white,
+                                      shadows: [
+                                        Shadow(
+                                          color: (_countdownNumber == 0
+                                                  ? Color(0xFF4A90E2)
+                                                  : Colors.white)
+                                              .withValues(alpha: 0.8),
+                                          blurRadius: 20,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_countdownNumber == 0) ...[
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Imagine!',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Color(0xFF4A90E2),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -476,7 +702,8 @@ class _TrainingScreenState extends State<TrainingScreen>
                           borderRadius: BorderRadius.circular(100),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: shadowOpacity),
+                              color:
+                                  Colors.black.withValues(alpha: shadowOpacity),
                               blurRadius: shadowBlur,
                               spreadRadius: 5,
                             ),
@@ -520,58 +747,29 @@ class _TrainingScreenState extends State<TrainingScreen>
                     ),
                   if (animationProgress > 0.55 || _showGo)
                     Positioned(
-                      left: screenWidth / 2 - 25,
-                      bottom: _showGo ? idleBallBottom + 120 : ballBottom + 120,
-                      child: () {
-                        String text;
-                        Color textColor;
-
-                        if (_showGo) {
-                          text = 'GO!';
-                          textColor = Color(0xFF4A90E2);
-                        } else {
-                          final fallProgress =
-                              (animationProgress - 0.55) / 0.45;
-
-                          if (fallProgress < 0.40) {
-                            text = '3';
-                            textColor = Colors.white70;
-                          } else if (fallProgress < 0.7) {
-                            text = '2';
-                            textColor = Colors.white70;
-                          } else if (fallProgress < 0.99) {
-                            text = '1';
-                            textColor = Colors.white70;
-                          } else {
-                            text = 'GO!';
-                            textColor = Color(0xFF4A90E2);
-                            // Set flag when we reach GO!
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                setState(() {
-                                  _showGo = true;
-                                });
-                              }
-                            });
-                          }
-                        }
-
-                        return Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                            shadows: [
-                              Shadow(
-                                color: textColor.withValues(alpha: 0.6),
-                                blurRadius: 15,
-                                offset: Offset(0, 0),
-                              ),
-                            ],
+                      left: 0,
+                      right: 0,
+                      bottom: 300,
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: Colors.white70, width: 2),
                           ),
-                        );
-                      }(),
+                          child: Text(
+                            'Rest',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white70,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                 ],
               );
@@ -616,8 +814,8 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
               ),
             ),
-          
-          // BCI Status Indicator 
+
+          // BCI Status Indicator
           if (_bciEnabled)
             Positioned(
               bottom: 30,
