@@ -16,7 +16,7 @@ class BCIService {
 
   // Server configuration
   static const String baseUrl =
-      'http://localhost:5000'; // locally hosted for privacy
+      'http://10.0.2.2:5000'; // <- this is android emulator ip can be changed tro real phone // locally hosted for privacy
 
   //  timer for detection
   Timer? _pollTimer;
@@ -85,28 +85,48 @@ class BCIService {
 
   // Poll calibration progress
   void _startCalibrationPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(Duration(milliseconds: 500), (timer) async {
+  _pollTimer?.cancel();
+
+  _pollTimer = Timer.periodic(
+    const Duration(milliseconds: 500),
+    (timer) async {
       try {
         final response = await http.get(
           Uri.parse('$baseUrl/calibration/progress'),
         );
 
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          final progress = data['progress'] as int;
+        if (response.statusCode != 200) return;
 
-          onCalibrationProgress?.call(progress);
+        final data = json.decode(response.body);
+        final progress = data['progress'] as int;
+        final status = data['status'] as String;
 
-          // Stop polling when complete
-          if (progress >= 100) {
-            timer.cancel();
-          }
+        onCalibrationProgress?.call(progress);
+
+        // STOP polling unless actively calibrating
+        if (status != 'calibrating') {
+          timer.cancel();
+          _pollTimer = null;
         }
-      } catch (e) {
-        print('✗ Progress poll error: $e');
+      } catch (_) {
+        timer.cancel();
+        _pollTimer = null;
       }
-    });
+    },
+  );
+}
+
+
+  Future<Map<String, dynamic>> getCalibrationStatus() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/calibration/status'),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get calibration status');
+    }
+
+    return jsonDecode(response.body);
   }
 
   // ========== TRAINING ==========

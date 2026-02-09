@@ -28,7 +28,7 @@ class _CalibrationScreenState extends State<CalibrationScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-   final BCIService _bciService = BCIService.instance;
+  final BCIService _bciService = BCIService.instance;
 
   @override
   void initState() {
@@ -46,17 +46,38 @@ class _CalibrationScreenState extends State<CalibrationScreen>
 
     _pulseController.repeat(reverse: true);
 
-   // setup BCI callback
-    _bciService.onCalibrationProgress = (progress) {
-      if (mounted) {
-        setState(() {
-          _progressPercentage = progress;
-          _secondsRemaining = ((60 * (100 - progress)) / 100).round();
-        });
+    // setup BCI callback
+    _bciService.onCalibrationProgress = (progress) async {
+      if (!mounted) return;
 
-        // Auto-complete when BCI finishes
-        if (progress >= 100) {
-          _onBaselineComplete();
+      setState(() {
+        _progressPercentage = progress;
+        _secondsRemaining = ((60 * (100 - progress)) / 100).round();
+      });
+
+      //  Do NOT trust progress alone
+      if (progress >= 100) {
+        try {
+          final status = await _bciService.getCalibrationStatus();
+
+          // TRUE SUCCESS
+          if (status['complete'] == true) {
+            _onBaselineComplete();
+            return;
+          }
+
+          // Calibration finished but failed
+          if (status['complete'] == false) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Calibration failed. Please retry.'),
+              ),
+            );
+          }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Calibration error: $e')),
+          );
         }
       }
     };
@@ -97,7 +118,6 @@ class _CalibrationScreenState extends State<CalibrationScreen>
         });
       }
     }
-  
 
     // Start countdown
     _phaseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -106,7 +126,6 @@ class _CalibrationScreenState extends State<CalibrationScreen>
 
         if (_secondsRemaining <= 0) {
           timer.cancel();
-          _onBaselineComplete();
         }
       });
     });
