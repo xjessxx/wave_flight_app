@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import '/reusable_widgets/reusable_widget.dart';
+import 'package:wave_flight_app/services/bci_service.dart';
+import 'dart:async';
+import 'package:http/http.dart' as http;
+
+// TODO: make devices page
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({super.key});
@@ -13,6 +17,15 @@ class _TrainingScreenState extends State<TrainingScreen>
   late AnimationController _controller;
   bool _hasAnimated = false;
   bool _showGo = false;
+  final BCIService _bciService = BCIService.instance;
+  bool _bciEnabled = false;
+  int _countdownNumber = 3;
+  bool _showCountdown = false;
+  Timer? _countdownTimer;
+  Timer? _restTimer;
+  bool _trainingActive = false;
+  int _currentTrial = 0;
+  final int _totalTrials = 20;
 
   // Static idle position
   static const double idleBallBottom = 100.0;
@@ -25,7 +38,7 @@ class _TrainingScreenState extends State<TrainingScreen>
     _controller = AnimationController(
       duration: Duration(
           milliseconds:
-              3000), //can be increased to allow more time between ball reload
+              4500), //can be increased to allow more time between ball reload
       vsync: this,
     );
 
@@ -35,76 +48,318 @@ class _TrainingScreenState extends State<TrainingScreen>
         setState(() {
           _hasAnimated = false;
         });
+
+        // After animation completes, wait 3 seconds then run next trial
+        if (_trainingActive && _currentTrial < _totalTrials) {
+          print('Rest period (3 seconds)...');
+          _restTimer = Timer(Duration(seconds: 3), () {
+            _runNextTrial(); // Automatically start next trial
+          });
+        } else if (_currentTrial >= _totalTrials) {
+          // Training complete
+          Future.delayed(Duration(seconds: 2), () {
+            _onTrainingComplete();
+          });
+        }
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       //pop up on screen load
       _showInstructionsPopup();
+      _startTrainingSession();
+      Future.delayed(Duration(seconds: 16), () {
+        // After instruction popup closes
+      });
     });
   }
 
   void _showInstructionsPopup() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        // go away after 10 seconds
+        // Auto-dismiss after 15 seconds
         Future.delayed(Duration(seconds: 15), () {
           if (Navigator.canPop(context)) {
             Navigator.of(context).pop();
           }
         });
 
-        return InstructionsDialog(
-          title: 'Thumb Movement Detection',
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome to Training Mode!',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        return Dialog(
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.psychology,
+                    size: 60, color: Color(0xFF4A90E2)),
+                const SizedBox(height: 16),
+                const Text(
+                  'Thumb Movement Detection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              SizedBox(height: 12),
-              Text('• Make sure you are in a calm and quiet environment'),
-              SizedBox(height: 8),
-              Text(
-                  '• After the countdown, Imagine moving your thumb once to swipe the ball'),
-              SizedBox(height: 8),
-              Text(
-                  '• After the task is detected, you will be asked to repeat it on a count of 3'),
-              SizedBox(height: 12),
-              Text(
-                'This message will close in 10 seconds',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey[600],
+                const SizedBox(height: 24),
+
+                // Instructions container
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900],
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: const Color(0xFF4A90E2), width: 2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInstructionItem(
+                        icon: Icons.self_improvement,
+                        text:
+                            'Make sure you are in a calm and quiet environment',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInstructionItem(
+                        icon: Icons.timer,
+                        text:
+                            'After the countdown, imagine moving your thumb once to swipe the ball',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInstructionItem(
+                        icon: Icons.repeat,
+                        text:
+                            'The ball will launch automatically, but it is important you imagine each time',
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 20),
+
+                // Timer countdown text
+                Text(
+                  'This message will close in 15 seconds',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  Widget _buildInstructionItem({required IconData icon, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: const Color(0xFF4A90E2), size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white70, fontSize: 15),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _startTrainingSession() async {
+    print('🎓 Starting training session...');
+
+    // Call Python to start training
+    final success = await _bciService.startTraining();
+
+    if (mounted) {
+      setState(() {
+        _trainingActive = success;
+        _bciEnabled = success;
+      });
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Training Session Started'),
+            backgroundColor: Color(0xFF4A90E2),
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Start initial countdown after instructions close (16 seconds)
+        Future.delayed(Duration(seconds: 16), () {
+          if (mounted && _trainingActive) {
+            _runNextTrial();
+          }
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Training failed to start - check Python server'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  void _runNextTrial() {
+    if (!_trainingActive || _currentTrial >= _totalTrials) {
+      return;
+    }
+
+    setState(() {
+      _currentTrial++;
+    });
+
+    print('🧠 Trial $_currentTrial/$_totalTrials - Starting countdown');
+
+    // Show countdown before animation
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    setState(() {
+      _showCountdown = true;
+      _countdownNumber = 3;
+    });
+
+    // Countdown
+    _countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_countdownNumber > 1) {
+        setState(() {
+          _countdownNumber--;
+        });
+      } else if (_countdownNumber == 1) {
+        setState(() {
+          _countdownNumber = 0; // 0 = Go
+        });
+      } else {
+        timer.cancel();
+
+        Future.delayed(Duration(milliseconds: 500), () {
+          setState(() {
+            _showCountdown = false;
+          });
+
+          // Trigger animation AND notify Python to collect data
+          _triggerJump();
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
     _controller.dispose();
+    _bciService.stopDetection();
+    _countdownTimer?.cancel();
+    _restTimer?.cancel();
     super.dispose();
   }
 
-  void _triggerJump() {
+  void _triggerJump() async {
     setState(() {
       _hasAnimated = true;
       _showGo = false;
     });
     _controller.reset();
     _controller.forward();
+
+    // Notify Python that animation started - collection trigger
+    if (_trainingActive) {
+      try {
+        final response = await http.post(
+          Uri.parse(
+              'http://10.0.2.2:5000/training/trial_start'), // Android emulator ip - to b changed to real phone eventually
+        );
+
+        if (response.statusCode == 200) {
+          print(
+              'Python collecting data for trial $_currentTrial/$_totalTrials');
+        } else {
+          print('Python not ready: ${response.body}');
+        }
+      } catch (e) {
+        print('Failed to notify Python: $e');
+      }
+    }
+  }
+
+  void _onTrainingComplete() {
+    // re-direct when done - probably to devices page to be made
+    setState(() {
+      _trainingActive = false;
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Color(0xFF4A90E2), width: 2),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 32),
+            SizedBox(width: 12),
+            Text(
+              'Training Complete!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Successfully collected $_currentTrial trials!\n\n'
+              'Your classifier has been trained.\n\n'
+              'The system can now attempt to detect your motor imagery in real-time.',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, '/home');
+            },
+            child: Text(
+              'Continue to Home',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4A90E2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   double _calculateArcHeight(double progress) {
@@ -117,36 +372,110 @@ class _TrainingScreenState extends State<TrainingScreen>
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Color(0xFF1a1a1a),
       body: Stack(
         children: [
           Column(
             children: [
-              // Top target area
+              // Top target area - Tunnel Effect
               Container(
                 height: 150,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF1a1a2e),
+                      Color(0xFF16213e),
+                    ],
+                  ),
                   border: Border(
-                    bottom: BorderSide(color: Colors.black, width: 3),
+                    bottom: BorderSide(color: Color(0xFF4A90E2), width: 3),
                   ),
-                ),
-                child: Center(
-                  child: Text(
-                    'swipe the ball over here',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF4A90E2).withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: Offset(0, 5),
                     ),
-                  ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    // Tunnel circle
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Color(0xFF0a0a0a),
+                              Color(0xFF16213e),
+                            ],
+                            stops: [0.5, 1.0],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF4A90E2).withValues(alpha: 0.4),
+                              blurRadius: 30,
+                              spreadRadius: -5,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Arched text above tunnel
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.arrow_downward_rounded,
+                            color: Color(0xFF4A90E2),
+                            size: 32,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'swipe the ball',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            'through here',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF4A90E2),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
               Expanded(
                 child: Container(
-                  color: Colors.white,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFF1a1a1a),
+                        Color(0xFF0f0f0f),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -171,7 +500,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                           borderRadius: BorderRadius.circular(100),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.5),
+                              color: Colors.black.withValues(alpha: 0.5),
                               blurRadius: 25.0,
                               spreadRadius: 5,
                             ),
@@ -200,9 +529,9 @@ class _TrainingScreenState extends State<TrainingScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 15,
-                              offset: Offset(5, 5),
+                              color: Color(0xFF4A90E2).withValues(alpha: 0.5),
+                              blurRadius: 25,
+                              offset: Offset(0, 10),
                             ),
                           ],
                         ),
@@ -213,18 +542,90 @@ class _TrainingScreenState extends State<TrainingScreen>
                         left: screenWidth / 2 - 45,
                         bottom: idleBallBottom + 120,
                         child: Text(
-                          'GO!',
+                          'GO',
                           style: TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
-                            color: const Color.fromARGB(255, 22, 210, 8),
+                            color: Color(0xFF4A90E2),
                             shadows: [
                               Shadow(
-                                color: Colors.black26,
-                                blurRadius: 10,
-                                offset: Offset(2, 2),
+                                color: Color(0xFF4A90E2).withValues(alpha: 0.8),
+                                blurRadius: 20,
+                                offset: Offset(0, 0),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                    // initial countdown
+                    if (_showCountdown && !_hasAnimated)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: idleBallBottom + 150, // Above the idle ball
+                        child: Center(
+                          child: Container(
+                            width: 180,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: 0.8),
+                              border: Border.all(
+                                color: _countdownNumber == 0
+                                    ? Color(0xFF4A90E2)
+                                    : Colors.white70,
+                                width: 4,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_countdownNumber == 0
+                                          ? Color(0xFF4A90E2)
+                                          : Colors.white70)
+                                      .withValues(alpha: 0.6),
+                                  blurRadius: 30,
+                                  spreadRadius: 5,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _countdownNumber > 0
+                                        ? '$_countdownNumber'
+                                        : 'GO',
+                                    style: TextStyle(
+                                      fontSize: _countdownNumber == 0 ? 56 : 80,
+                                      fontWeight: FontWeight.bold,
+                                      color: _countdownNumber == 0
+                                          ? Color(0xFF4A90E2)
+                                          : Colors.white,
+                                      shadows: [
+                                        Shadow(
+                                          color: (_countdownNumber == 0
+                                                  ? Color(0xFF4A90E2)
+                                                  : Colors.white)
+                                              .withValues(alpha: 0.8),
+                                          blurRadius: 20,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_countdownNumber == 0) ...[
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Imagine!',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Color(0xFF4A90E2),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -240,9 +641,9 @@ class _TrainingScreenState extends State<TrainingScreen>
               double shadowBlur;
               double ballScale;
 
-              if (animationProgress <= 0.33) {
+              if (animationProgress <= 0.40) {
                 // SHOOTING PHASE
-                final shootProgress = animationProgress / 0.33;
+                final shootProgress = animationProgress / 0.40;
 
                 final t = shootProgress;
                 final forwardProgress = t;
@@ -263,7 +664,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 shadowOpacity = 0.5 - (shootProgress * 0.4);
                 shadowSize = 100.0 - (shootProgress * 60);
                 shadowBlur = 25.0 - (shootProgress * 15);
-              } else if (animationProgress <= 0.66) {
+              } else if (animationProgress <= 0.55) {
                 // PAUSE PHASE - ball is behind wall
                 ballBottom = screenHeight + 100;
                 ballScale = 0.5;
@@ -272,7 +673,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 shadowBlur = 10.0;
               } else {
                 // FALLING PHASE
-                final fallProgress = (animationProgress - 0.66) / 0.34;
+                final fallProgress = (animationProgress - 0.55) / 0.45;
 
                 // Calculate where the ball was at the top
                 final topPosition = screenHeight - 50;
@@ -290,7 +691,7 @@ class _TrainingScreenState extends State<TrainingScreen>
               return Stack(
                 children: [
                   // Shadow
-                  if (animationProgress <= 0.6 || animationProgress > 0.65)
+                  if (animationProgress <= 0.40 || animationProgress > 0.55)
                     Positioned(
                       left: screenWidth / 2 - (shadowSize / 2),
                       bottom: idleShadowBottom,
@@ -301,7 +702,8 @@ class _TrainingScreenState extends State<TrainingScreen>
                           borderRadius: BorderRadius.circular(100),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(shadowOpacity),
+                              color:
+                                  Colors.black.withValues(alpha: shadowOpacity),
                               blurRadius: shadowBlur,
                               spreadRadius: 5,
                             ),
@@ -311,7 +713,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                     ),
 
                   // Ball
-                  if (animationProgress <= 0.6 || animationProgress > 0.65)
+                  if (animationProgress <= 0.40 || animationProgress > 0.55)
                     Positioned(
                       left: screenWidth / 2 - 50,
                       bottom: ballBottom,
@@ -334,93 +736,126 @@ class _TrainingScreenState extends State<TrainingScreen>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 15,
-                                offset: Offset(5, 5),
+                                color: Color(0xFF4A90E2).withValues(alpha: 0.4),
+                                blurRadius: 20,
+                                offset: Offset(0, 8),
                               ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  if (animationProgress > 0.66 || _showGo)
+                  if (animationProgress > 0.55 || _showGo)
                     Positioned(
-                      left: screenWidth / 2 - 25,
-                      bottom: _showGo ? idleBallBottom + 120 : ballBottom + 120,
-                      child: () {
-                        String text;
-
-                        if (_showGo) {
-                          text = 'GO!';
-                        } else {
-                          final fallProgress =
-                              (animationProgress - 0.66) / 0.34;
-
-                          if (fallProgress < 0.40) {
-                            text = '3';
-                          } else if (fallProgress < 0.7) {
-                            text = '2';
-                          } else if (fallProgress < 0.99) {
-                            text = '1';
-                          } else {
-                            text = 'GO!';
-                            // Set flag when we reach GO!
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                setState(() {
-                                  _showGo = true;
-                                });
-                              }
-                            });
-                          }
-                        }
-
-                        return Text(
-                          text,
-                          style: TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            color: const Color.fromARGB(255, 28, 61, 88),
-                            shadows: [
-                              Shadow(
-                                color: Colors.black26,
-                                blurRadius: 10,
-                                offset: Offset(2, 2),
-                              ),
-                            ],
+                      left: 0,
+                      right: 0,
+                      bottom: 300,
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: Colors.white70, width: 2),
                           ),
-                        );
-                      }(),
+                          child: Text(
+                            'Rest',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white70,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                 ],
               );
             },
           ),
 
-          // Trigger button )
-          Positioned(
-            bottom: 30,
-            right: 30,
-            child: ElevatedButton(
-              onPressed: _triggerJump,
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                elevation: 5,
-                shape: RoundedRectangleBorder(
+          // Trigger button - only if bci not attached
+          if (!_bciEnabled)
+            Positioned(
+              bottom: 30,
+              right: 30,
+              child: Container(
+                decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF4A90E2).withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
                 ),
-              ),
-              child: Text(
-                'TRIGGER',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                child: ElevatedButton(
+                  onPressed: _triggerJump,
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                    backgroundColor: Color(0xFF4A90E2),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: Text(
+                    'MANUAL TRIGGER',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+
+          // BCI Status Indicator
+          if (_bciEnabled)
+            Positioned(
+              bottom: 30,
+              right: 30,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Color(0xFF4A90E2), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF4A90E2).withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.psychology,
+                      color: Color(0xFF4A90E2),
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'BCI ACTIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
