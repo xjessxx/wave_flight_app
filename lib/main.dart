@@ -1,127 +1,169 @@
+// // import 'package:flutter/material.dart';
+// // import 'screens/calibration_screen.dart';
+// // import 'screens/device_control_screen.dart';
+// // import 'screens/home_screen.dart';
+// // import 'screens/signin_screen.dart';
+// // import 'screens/training_screen.dart';
+
+// // void main() {
+// //   WidgetsFlutterBinding.ensureInitialized();
+// //   runApp(const MyApp());
+// // }
+
+// // class MyApp extends StatelessWidget {
+// //   const MyApp({super.key});
+
+// //   @override
+// //   Widget build(BuildContext context) {
+// //     return MaterialApp(
+// //       title: 'BCI for Accessibility',
+// //       debugShowCheckedModeBanner: false,
+// //       theme: ThemeData(
+// //         useMaterial3: true,
+// //         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+// //       ),
+// //       initialRoute: '/signin',
+// //       routes: {
+// //         '/signin': (context) => const SigninScreen(),
+// //         '/home': (context) => const HomeScreen(),
+// //         '/devices': (context) => const DeviceControlScreen(),
+// //         '/calibration': (context) => const CalibrationScreen(),
+// //         '/training': (context) => const TrainingScreen(),
+// //       },
+// //     );
+// //   }
+// // }
+
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:flutter/material.dart';
+// import 'firebase_options.dart';
+// import 'screens/calibration_screen.dart';
+// import 'screens/device_control_screen.dart';
+// import 'screens/home_screen.dart';
+// import 'screens/reset_password.dart';
+// import 'screens/signin_screen.dart';
+// import 'screens/signup_screen.dart';
+// import 'screens/training_screen.dart';
+
+// void main() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Firebase.initializeApp(
+//     options: DefaultFirebaseOptions.currentPlatform,
+//   );
+//   runApp(const WaveFlightApp());
+// }
+
+// class WaveFlightApp extends StatelessWidget {
+//   const WaveFlightApp({super.key});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       title: 'WaveFlight',
+//       debugShowCheckedModeBanner: false,
+//       theme: ThemeData(
+//         useMaterial3: true,
+//         colorScheme: ColorScheme.fromSeed(
+//           seedColor: const Color(0xFF3A86FF),
+//           brightness: Brightness.light,
+//         ),
+//       ),
+//       darkTheme: ThemeData(
+//         useMaterial3: true,
+//         colorScheme: ColorScheme.fromSeed(
+//           seedColor: const Color(0xFF3A86FF),
+//           brightness: Brightness.dark,
+//         ),
+//       ),
+//       themeMode: ThemeMode.system,
+//       initialRoute: '/signin',
+//       routes: {
+//         '/signin':      (context) => const SigninScreen(),
+//         '/signup':      (context) => const SignUpPage(),
+//         '/reset':       (context) => const ResetPasswordScreen(),
+//         '/home':        (context) => const HomeScreen(),
+//         '/devices':     (context) => const DeviceControlScreen(),
+//         '/calibration': (context) => const CalibrationScreen(),
+//         '/training':    (context) => const TrainingScreen(),
+//       },
+//     );
+//   }
+// }
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'screens/signin_screen.dart';
+import 'firebase_options.dart';
 import 'screens/calibration_screen.dart';
+import 'screens/device_control_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/reset_password.dart';
+import 'screens/signin_screen.dart';
+import 'screens/signup_screen.dart';
 import 'screens/training_screen.dart';
-import 'services/bci_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(const MyApp());
-}
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  bool firebaseAvailable = false;
 
-   
+  // Only init Firebase on Android — skip on Windows and web for dev convenience.
+  // Set this to true once you're ready to test auth on a real Android device.
+  const bool enableFirebaseAuth = false; //  flip to true for real device auth testing
 
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-
-    @override
-  void initState() {
-    super.initState();
-    // Initialize BCI when app starts
-    _initializeBCI();
-  }
-
-  Future<void> _initializeBCI() async {
-    print('🧠 Initializing BCI system...');
-    
-    // Wait a moment for the app to fully load
-    await Future.delayed(Duration(seconds: 1));
-    
-    final success = await BCIService.instance.initialize();
-    
-    if (success) {
-      print('BCI system initialized successfully'); //this nbeeds to eb the only place this is happening
-    } else {
-      print('BCI initialization failed - check Python server');
-      print('   Run: python bci_flutter_bridge.py');
+  if (!kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android &&
+      enableFirebaseAuth) {
+    try {
+      final opts = DefaultFirebaseOptions.currentPlatformOrNull;
+      if (opts != null) {
+        await Firebase.initializeApp(options: opts);
+        firebaseAvailable = true;
+      }
+    } catch (e) {
+      debugPrint('Firebase init failed: $e');
     }
   }
+
+  runApp(WaveFlightApp(firebaseAvailable: firebaseAvailable));
+}
+
+class WaveFlightApp extends StatelessWidget {
+  final bool firebaseAvailable;
+  const WaveFlightApp({super.key, required this.firebaseAvailable});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BCI for Accessibility',
+      title: 'WaveFlight',
       debugShowCheckedModeBanner: false,
-
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: const Color(0xFF3A86FF),
           brightness: Brightness.light,
         ),
       ),
-
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: const Color(0xFF3A86FF),
           brightness: Brightness.dark,
         ),
       ),
-
-      themeMode: ThemeMode.system, // or ThemeMode.dark
-      initialRoute: '/',
+      themeMode: ThemeMode.system,
+      // Skip auth screens during development — go straight to home.
+      // When enableFirebaseAuth is true, shows sign-in screen instead.
+      initialRoute: firebaseAvailable ? '/signin' : '/home',
       routes: {
-        '/': (context) => const SigninScreen(),
+        '/signin':      (context) => const SigninScreen(),
+        '/signup':      (context) => const SignUpPage(),
+        '/reset':       (context) => const ResetPasswordScreen(),
+        '/home':        (context) => const HomeScreen(),
+        '/devices':     (context) => const DeviceControlScreen(),
         '/calibration': (context) => const CalibrationScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/training': (context) => const TrainingScreen(),
+        '/training':    (context) => const TrainingScreen(),
       },
     );
   }
 }
-
-
-
-// // ============= previos version ==============
-//
-// import 'package:firebase_core/firebase_core.dart';
-// import 'package:flutter/material.dart';
-// import 'screens/signin_screen.dart';
-//
-// void main() async {
-//   WidgetsFlutterBinding.ensureInitialized();
-//   await Firebase.initializeApp();
-//   runApp(const MyApp());
-// }
-//
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-//
-//   // This widget is the root of your application.
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       title: 'Flutter Demo',
-//       theme: ThemeData(
-//         // This is the theme of your application.
-//         //
-//         // TRY THIS: Try running your application with "flutter run". You'll see
-//         // the application has a purple toolbar. Then, without quitting the app,
-//         // try changing the seedColor in the colorScheme below to Colors.green
-//         // and then invoke "hot reload" (save your changes or press the "hot
-//         // reload" button in a Flutter-supported IDE, or press "r" if you used
-//         // the command line to start the app).
-//         //
-//         // Notice that the counter didn't reset back to zero; the application
-//         // state is not lost during the reload. To reset the state, use hot
-//         // restart instead.
-//         //
-//         // This works for code too, not just values: Most code changes can be
-//         // tested with just a hot reload.
-//         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-//         useMaterial3: true,
-//       ),
-//       home: const SigninScreen(),
-//     );
-//   }
-// }

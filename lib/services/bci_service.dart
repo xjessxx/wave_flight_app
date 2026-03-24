@@ -1,109 +1,130 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// Service to communicate with Python BCI server
-///
-/// Usage:
-/// 1. Start Python server: python bci_flutter_bridge.py
-/// 2. Initialize: await BCIService.instance.initialize()
-/// 3. Use in the calibration/training screens
+class BCIStatus {
+  final bool initialized;
+  final bool calibrated;
+  final bool trained;
+  final bool detecting;
+  final String mode;
+  final double lastConfidence;
+
+  BCIStatus({
+    required this.initialized,
+    required this.calibrated,
+    required this.trained,
+    required this.detecting,
+    required this.mode,
+    required this.lastConfidence,
+  });
+
+  factory BCIStatus.fromJson(Map<String, dynamic> json) {
+    return BCIStatus(
+      initialized: json['initialized'] == true,
+      calibrated: json['calibrated'] == true,
+      trained: json['trained'] == true,
+      detecting: json['detecting'] == true,
+      mode: (json['mode'] ?? 'unknown').toString(),
+      lastConfidence: (json['last_confidence'] ?? 0).toDouble(),
+    );
+  }
+}
+
 class BCIService {
-  // Singleton pattern
   static final BCIService instance = BCIService._internal();
   factory BCIService() => instance;
   BCIService._internal();
 
-  // Server configuration
-  static const String baseUrl =
-      'http://10.0.2.2:5000'; // <- this is android emulator ip can be changed tro real phone // locally hosted for privacy
+  String _baseUrl = const String.fromEnvironment(
+    'BCI_BRIDGE_URL',
+    defaultValue: 'http://127.0.0.1:5000',
+  );
 
-  //  timer for detection
   Timer? _pollTimer;
 
   Function(bool trigger, double confidence)? onTriggerDetected;
   Function(int progress)? onCalibrationProgress;
   Function(int current, int total)? onTrainingProgress;
 
-  // ========== SYSTEM MANAGEMENT ==========
+  String get baseUrl => _baseUrl;
 
-  /// Initialize EEG hardware
+  void updateBaseUrl(String url) {
+    _baseUrl = url.trim();
+  }
+
+  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
+
+  Map<String, dynamic> _decode(http.Response response) {
+    if (response.body.isEmpty) return {};
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<bool> bridgeAvailable() async {
+    try {
+      final response = await http.get(_uri('/status')).timeout(const Duration(seconds: 3));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> initialize() async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/system/initialize'),
-      );
-
-      if (response.statusCode == 200) {
-        print('BCI System initialized');
-        return true;
-      } else {
-        print('Failed to initialize: ${response.body}');
-        return false;
-      }
-    } catch (e) {
-      print('Connection error: $e');
-      print('Make sure Python server is running: python bci_flutter_bridge.py');
+      final response = await http.post(_uri('/system/initialize')).timeout(
+            const Duration(seconds: 10),
+          );
+      return response.statusCode == 200;
+    } catch (_) {
       return false;
     }
   }
 
-  /// Shutdown EEG hardware
   Future<void> shutdown() async {
-    stopDetectionPolling();
-
+    stopPolling();
     try {
-      await http.post(Uri.parse('$baseUrl/system/shutdown'));
-      print('BCI System shutdown');
-    } catch (e) {
-      print('Shutdown error: $e');
-    }
+      await http.post(_uri('/system/shutdown')).timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 
-  // ========== CALIBRATION ==========
-
-  /// Start baseline calibration (60 seconds)
   Future<bool> startCalibration() async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/calibration/start'),
-      );
-
+      final response = await http.post(_uri('/calibration/start')).timeout(
+            const Duration(seconds: 10),
+          );
       if (response.statusCode == 200) {
-        print('Calibration started');
         _startCalibrationPolling();
         return true;
-      } else {
-        print('Failed to start calibration: ${response.body}');
-        return false;
       }
-    } catch (e) {
-      print('Calibration error: $e');
+      return false;
+    } catch (_) {
       return false;
     }
   }
 
-  // Poll calibration progress
-  void _startCalibrationPolling() {
-  _pollTimer?.cancel();
-
-  _pollTimer = Timer.periodic(
-    const Duration(milliseconds: 500),
-    (timer) async {
-      try {
-        final response = await http.get(
-          Uri.parse('$baseUrl/calibration/progress'),
+  Future<Map<String, dynamic>> getCalibrationStatus() async {
+    final response = await http.get(_uri('/calibration/status')).timeout(
+          const Duration(seconds: 5),
         );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to get calibration status');
+    }
+    return _decode(response);
+  }
 
+  void _startCalibrationPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      try {
+        final response = await http.get(_uri('/calibration/progress'));
         if (response.statusCode != 200) return;
 
-        final data = json.decode(response.body);
-        final progress = data['progress'] as int;
-        final status = data['status'] as String;
+        final data = _decode(response);
+        final progress = (data['progress'] ?? 0) as int;
+        final status = (data['status'] ?? '').toString();
 
         onCalibrationProgress?.call(progress);
 
-        // STOP polling unless actively calibrating
         if (status != 'calibrating') {
           timer.cancel();
           _pollTimer = null;
@@ -112,164 +133,182 @@ class BCIService {
         timer.cancel();
         _pollTimer = null;
       }
-    },
-  );
-}
-
-
-  Future<Map<String, dynamic>> getCalibrationStatus() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/calibration/status'),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to get calibration status');
-    }
-
-    return jsonDecode(response.body);
+    });
   }
+//   // ========== CALIBRATION ==========
 
-  // ========== TRAINING ==========
+//   /// Start baseline calibration (60 seconds)
+//   Future<bool> startCalibration() async {
+//     try {
+//       final response = await http.post(
+//         Uri.parse('$baseUrl/calibration/start'),
+//       );
 
-  /// Start training session
+//       if (response.statusCode == 200) {
+//         print('Calibration started');
+//         _startCalibrationPolling();
+//         return true;
+//       } else {
+//         print('Failed to start calibration: ${response.body}');
+//         return false;
+//       }
+//     } catch (e) {
+//       print('Calibration error: $e');
+//       return false;
+//     }
+//   }
+
+//   // Poll calibration progress
+//   void _startCalibrationPolling() {
+//   _pollTimer?.cancel();
+
+//   _pollTimer = Timer.periodic(
+//     const Duration(milliseconds: 500),
+//     (timer) async {
+//       try {
+//         final response = await http.get(
+//           Uri.parse('$baseUrl/calibration/progress'),
+//         );
+
+//         if (response.statusCode != 200) return;
+
+//         final data = json.decode(response.body);
+//         final progress = data['progress'] as int;
+//         final status = data['status'] as String;
+
+//         onCalibrationProgress?.call(progress);
+
+//         // STOP polling unless actively calibrating
+//         if (status != 'calibrating') {
+//           timer.cancel();
+//           _pollTimer = null;
+//         }
+//       } catch (_) {
+//         timer.cancel();
+//         _pollTimer = null;
+//       }
+//     },
+//   );
+// }
+
+
+//   Future<Map<String, dynamic>> getCalibrationStatus() async {
+//     final response = await http.get(
+//       Uri.parse('$baseUrl/calibration/status'),
+//     );
+
+//     if (response.statusCode != 200) {
+//       throw Exception('Failed to get calibration status');
+//     }
+
+//     return jsonDecode(response.body);
+//   }
   Future<bool> startTraining() async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/training/start'),
-      );
-
+      final response = await http.post(_uri('/training/start')).timeout(
+            const Duration(seconds: 10),
+          );
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        print('Training started - ${data['total_trials']} trials');
         _startTrainingPolling();
         return true;
-      } else {
-        print('Failed to start training: ${response.body}');
-        return false;
       }
-    } catch (e) {
-      print('Training error: $e');
+      return false;
+    } catch (_) {
       return false;
     }
   }
 
-  /*Send manual trigger (when user presses button during training)
-  Future<void> sendTrainingTrigger() async {
+  Future<bool> trainingTrialStart() async {
     try {
-      await http.post(Uri.parse('$baseUrl/training/trigger'));
-      print('Training trigger sent');
-    } catch (e) {
-      print('Trigger error: $e');
+      final response = await http.post(_uri('/training/trial_start')).timeout(
+            const Duration(seconds: 5),
+          );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
     }
-  }*/
+  }
 
-  /// Poll training progress
   void _startTrainingPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(Duration(seconds: 1), (timer) async {
+    _pollTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       try {
-        final response = await http.get(
-          Uri.parse('$baseUrl/training/progress'),
-        );
+        final response = await http.get(_uri('/training/progress'));
+        if (response.statusCode != 200) return;
 
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          final current = data['current_trial'] as int;
-          final total = data['total_trials'] as int;
+        final data = _decode(response);
+        final current = (data['current_trial'] ?? 0) as int;
+        final total = (data['total_trials'] ?? 0) as int;
 
-          onTrainingProgress?.call(current, total);
+        onTrainingProgress?.call(current, total);
 
-          // Stop polling when complete
-          if (current >= total) {
-            timer.cancel();
-          }
+        if (current >= total && total > 0) {
+          timer.cancel();
+          _pollTimer = null;
         }
-      } catch (e) {
-        print('Progress poll error: $e');
+      } catch (_) {
+        timer.cancel();
+        _pollTimer = null;
       }
     });
   }
 
-  // ========== REAL-TIME DETECTION ==========
-
-  /// Start motor imagery detection
   Future<bool> startDetection() async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/detection/start'),
-      );
-
+      final response = await http.post(_uri('/detection/start')).timeout(
+            const Duration(seconds: 10),
+          );
       if (response.statusCode == 200) {
-        print('Detection started');
         _startDetectionPolling();
         return true;
-      } else {
-        print('Failed to start detection: ${response.body}');
-        return false;
       }
-    } catch (e) {
-      print('Detection error: $e');
+      return false;
+    } catch (_) {
       return false;
     }
   }
 
-  /// Stop motor imagery detection
   Future<void> stopDetection() async {
-    stopDetectionPolling();
-
+    stopPolling();
     try {
-      await http.post(Uri.parse('$baseUrl/detection/stop'));
-      print('Detection stopped');
-    } catch (e) {
-      print('Stop detection error: $e');
-    }
+      await http.post(_uri('/detection/stop')).timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 
-  /// Poll for motor imagery triggers
   void _startDetectionPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(Duration(milliseconds: 200), (timer) async {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) async {
       try {
-        final response = await http.get(
-          Uri.parse('$baseUrl/detection/poll'),
-        );
+        final response = await http.get(_uri('/detection/poll'));
+        if (response.statusCode != 200) return;
 
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          final trigger = data['trigger'] as bool;
-          final confidence = (data['confidence'] as num).toDouble();
+        final data = _decode(response);
+        final trigger = data['trigger'] == true;
+        final confidence = (data['confidence'] ?? 0).toDouble();
 
-          if (trigger) {
-            print(
-                'TRIGGER DETECTED! Confidence: ${(confidence * 100).toStringAsFixed(0)}%');
-            onTriggerDetected?.call(trigger, confidence);
-          }
+        if (trigger) {
+          onTriggerDetected?.call(true, confidence);
         }
-      } catch (e) {
-        // Silent fail for polling
+      } catch (_) {
+        // keep polling quietly
       }
     });
   }
 
-  /// Stop polling
-  void stopDetectionPolling() {
+  void stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
   }
 
-  // ========== STATUS ==========
-
-  /// Get current system status
-  Future<Map<String, dynamic>?> getStatus() async {
+  Future<BCIStatus?> getStatus() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/status'));
-
+      final response = await http.get(_uri('/status')).timeout(
+            const Duration(seconds: 5),
+          );
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        return BCIStatus.fromJson(_decode(response));
       }
-    } catch (e) {
-      print('Status error: $e');
-    }
+    } catch (_) {}
     return null;
   }
 }

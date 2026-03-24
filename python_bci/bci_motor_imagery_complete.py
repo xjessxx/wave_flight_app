@@ -4,8 +4,8 @@ Motor Imagery BCI classification System - Complete Implementation
 Hardware-ready version with proper ML training and real time classification
 
 Author: Lily Farr (Based on Chapter 3 Methods)
-Hardware: OpenBCI Cyton / NeuroPawn EEG Headset 
-Features: Baseline calibration, ML training, real-time ERD detection, smart home control
+Hardware: NeuroPawn biopotential EEG Headset kit
+Features: Baseline calibration, training, real-time ERD detection, smart home control
 
 BEFORE RUNNING:
 1. Install dependencies: pip install -r requirements.txt
@@ -62,7 +62,7 @@ class Config:
     # === Hardware Selection ===
     # Options: BoardIds.CYTON_BOARD, BoardIds.SYNTHETIC_BOARD
     BOARD_ID = BoardIds.NEUROPAWN_KNIGHT_BOARD # Change when hardware arrives
-    SERIAL_PORT = 'COM5' # '/dev/ttyUSB0'  # Windows: 'COM3', Mac: '/dev/cu.usbserial-*'
+    SERIAL_PORT = 'COM3' # '/dev/ttyUSB0'  # Windows: 'COM3', Mac: '/dev/cu.usbserial-*'
     NUM_CHANNELS = 8 
 
     # === EEG Channels ===
@@ -143,39 +143,45 @@ class EEGStream:
         """Start EEG data streaming"""
         try:
             self.board.prepare_session()
-            self.board.start_stream(450000) # buffer
+            self.board.start_stream(450000)
             self.is_streaming = True
             print("EEG stream started")
-            time.sleep(2)  # Stabilization
+            time.sleep(2)  # Initial stabilization
 
-            if self.board_id == BoardIds.NEUROPAWN_KNIGHT_BOARD.value:
+            # Fix: compare enum to enum (not .value) so configure always runs
+            neuropawn_id = BoardIds.NEUROPAWN_KNIGHT_BOARD
+            if self.board_id in (neuropawn_id, neuropawn_id.value):
                 self.configure_neuropawn(Config.NUM_CHANNELS)
+                # Discard data collected during config commands and let
+                # the board produce clean data before any calibration.
+                print("Clearing config-phase data, settling 3s...")
+                _ = self.board.get_board_data()   # drain and discard
+                time.sleep(3)
 
         except Exception as e:
             print(f"Failed to start stream: {e}")
             raise
-    
+
     def configure_neuropawn(self, num_channels=8):
         """
-        Configure Neuropawn Knight Board channels
-        Enables each channel with gain=12 and RLD for noise reduction
+        Configure Neuropawn Knight Board channels.
+        Enables each channel with gain=12 and RLD for noise reduction.
         """
-        if self.board_id != BoardIds.NEUROPAWN_KNIGHT_BOARD.value:
-            return  
-        
+        neuropawn_id = BoardIds.NEUROPAWN_KNIGHT_BOARD
+        if self.board_id not in (neuropawn_id, neuropawn_id.value):
+            return
+
         print("\nConfiguring Neuropawn Knight Board...")
-        
+
         for channel in range(1, num_channels + 1):
-            # Enable channel with gain=12 - could be changed later
             cmd_on = f"chon_{channel}_12"
             self.board.config_board(cmd_on)
-            time.sleep(0.5)
-            
-            # Enable RLD for noise reduction
+            time.sleep(0.2)
+
             cmd_rld = f"rldadd_{channel}"
             self.board.config_board(cmd_rld)
-            time.sleep(0.5)
-        
+            time.sleep(0.2)
+
         print("Neuropawn configuration complete\n")
     
     def stop(self):
@@ -340,17 +346,17 @@ class BaselineCalibrator:
         
         # Calculate baseline power
         baseline = {
-            'c3_mu': self.processor.compute_psd(c3_clean, Config.MU_BAND),
-            'c3_beta': self.processor.compute_psd(c3_clean, Config.BETA_BAND),
-            'c4_mu': self.processor.compute_psd(c4_clean, Config.MU_BAND),
-            'c4_beta': self.processor.compute_psd(c4_clean, Config.BETA_BAND),
+            'c3_mu_power': self.processor.compute_psd(c3_clean, Config.MU_BAND),
+            'c3_beta_power': self.processor.compute_psd(c3_clean, Config.BETA_BAND),
+            'c4_mu_power': self.processor.compute_psd(c4_clean, Config.MU_BAND),
+            'c4_beta_power': self.processor.compute_psd(c4_clean, Config.BETA_BAND),
         }
         
         self.baseline = baseline
         
         print("\nBASELINE COMPLETE")
-        print(f"  C3 - Mu: {baseline['c3_mu']:.2f} µV²/Hz, Beta: {baseline['c3_beta']:.2f} µV²/Hz")
-        print(f"  C4 - Mu: {baseline['c4_mu']:.2f} µV²/Hz, Beta: {baseline['c4_beta']:.2f} µV²/Hz")
+        print(f"  C3 - Mu: {baseline['c3_mu_power']:.2f} µV²/Hz, Beta: {baseline['c3_beta_power']:.2f} µV²/Hz")
+        print(f"  C4 - Mu: {baseline['c4_mu_power']:.2f} µV²/Hz, Beta: {baseline['c4_beta_power']:.2f} µV²/Hz")
         
         # Save baseline
         if Config.SAVE_RAW_DATA:
@@ -446,10 +452,10 @@ class TrainingCollector:
         c4_beta_power = self.processor.compute_psd(c4_data, Config.BETA_BAND)
         
         # Calculate ERD
-        c3_mu_erd = self.processor.compute_erd(c3_mu_power, self.baseline['c3_mu'])
-        c3_beta_erd = self.processor.compute_erd(c3_beta_power, self.baseline['c3_beta'])
-        c4_mu_erd = self.processor.compute_erd(c4_mu_power, self.baseline['c4_mu'])
-        c4_beta_erd = self.processor.compute_erd(c4_beta_power, self.baseline['c4_beta'])
+        c3_mu_erd = self.processor.compute_erd(c3_mu_power, self.baseline['c3_mu_power'])
+        c3_beta_erd = self.processor.compute_erd(c3_beta_power, self.baseline['c3_beta_power'])
+        c4_mu_erd = self.processor.compute_erd(c4_mu_power, self.baseline['c4_mu_power'])
+        c4_beta_erd = self.processor.compute_erd(c4_beta_power, self.baseline['c4_beta_power'])
         
         return np.array([c3_mu_erd, c3_beta_erd, c4_mu_erd, c4_beta_erd])
     
@@ -676,10 +682,10 @@ class RealTimeDetector:
         c4_mu_power = self.processor.compute_psd(c4_clean, Config.MU_BAND)
         c4_beta_power = self.processor.compute_psd(c4_clean, Config.BETA_BAND)
         
-        c3_mu_erd = self.processor.compute_erd(c3_mu_power, self.baseline['c3_mu'])
-        c3_beta_erd = self.processor.compute_erd(c3_beta_power, self.baseline['c3_beta'])
-        c4_mu_erd = self.processor.compute_erd(c4_mu_power, self.baseline['c4_mu'])
-        c4_beta_erd = self.processor.compute_erd(c4_beta_power, self.baseline['c4_beta'])
+        c3_mu_erd = self.processor.compute_erd(c3_mu_power, self.baseline['c3_mu_power'])
+        c3_beta_erd = self.processor.compute_erd(c3_beta_power, self.baseline['c3_beta_power'])
+        c4_mu_erd = self.processor.compute_erd(c4_mu_power, self.baseline['c4_mu_power'])
+        c4_beta_erd = self.processor.compute_erd(c4_beta_power, self.baseline['c4_beta_power'])
         
         features = np.array([c3_mu_erd, c3_beta_erd, c4_mu_erd, c4_beta_erd])
         
