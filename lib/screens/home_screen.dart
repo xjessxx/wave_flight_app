@@ -582,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await _refreshBciStatus();
   }
 
-  Future<void> _refreshSelectedDevice() async {
+  /*Future<void> _refreshSelectedDevice() async {
     if (_kasa == null || _selectedDeviceId == null) {
       if (!mounted) return;
       setState(() {
@@ -608,6 +608,66 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedDevice = null;
       });
     }
+  }*/
+
+  Future<void> _refreshSelectedDevice() async {
+    print('DEBUG: _selectedDeviceId = $_selectedDeviceId');
+    print('DEBUG: _kasa = $_kasa');
+    if (_selectedDeviceId == null) {
+      if (!mounted) return;
+      setState(() {
+        _selectedDevice = null;
+      });
+      return;
+    }
+
+    // Try live bridge first
+    if (_kasa != null) {
+      try {
+        final devices = await _kasa!.discoverDevices();
+        final match = devices.where((d) => d.id == _selectedDeviceId).cast<KasaDevice?>().firstWhere(
+              (d) => d != null,
+              orElse: () => null,
+            );
+
+        if (match != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('selected_device_name', match.name);
+          await prefs.setString('selected_device_ip', match.ip);
+          await prefs.setString('selected_device_model', match.model);
+          await prefs.setBool('selected_device_state', match.state);
+
+          if (!mounted) return;
+          setState(() {
+            _selectedDevice = match;
+          });
+          return;
+        }
+      } catch (e) {
+         print('DEBUG _refreshSelectedDevice error: $e');
+        // Fall through to cached data
+      }
+    }
+
+    // Fall back to cached data
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('selected_device_name');
+    final ip = prefs.getString('selected_device_ip');
+    final model = prefs.getString('selected_device_model');
+    final state = prefs.getBool('selected_device_state') ?? false;
+
+    if (!mounted) return;
+    setState(() {
+      _selectedDevice = (name != null && ip != null)
+          ? KasaDevice(
+              id: _selectedDeviceId!,
+              name: name,
+              ip: ip,
+              model: model ?? 'Kasa Plug',
+              state: state,
+            )
+          : null;
+    });
   }
 
   Future<void> _refreshBciStatus() async {

@@ -22,7 +22,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
   List<KasaDevice> _devices = [];
   String? _selectedDeviceId;
 
-  bool _useRealDevices = true;
+  final bool _useRealDevices = true;
   bool _isLoading = false;
   bool _isSavingCredentials = false;
   bool _isTestingCredentials = false;
@@ -82,12 +82,38 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
     await prefs.setString(_bridgeUrlKey, _bridgeUrlController.text.trim());
   }
 
-  Future<void> _saveSelectedDevice(String? deviceId) async {
+  /*Future<void> _saveSelectedDevice(String? deviceId) async {
     final prefs = await SharedPreferences.getInstance();
     if (deviceId == null) {
       await prefs.remove(_selectedDeviceKey);
     } else {
       await prefs.setString(_selectedDeviceKey, deviceId);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _selectedDeviceId = deviceId;
+    });
+  }*/
+
+  Future<void> _saveSelectedDevice(String? deviceId) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (deviceId == null) {
+      await prefs.remove(_selectedDeviceKey);
+      await prefs.remove('selected_device_name');
+      await prefs.remove('selected_device_ip');
+      await prefs.remove('selected_device_model');
+      await prefs.remove('selected_device_state');
+    } else {
+      await prefs.setString(_selectedDeviceKey, deviceId);
+      // Cache full device details so home screen works without live bridge
+      final device = _devices.where((d) => d.id == deviceId).firstOrNull;
+      if (device != null) {
+        await prefs.setString('selected_device_name', device.name);
+        await prefs.setString('selected_device_ip', device.ip);
+        await prefs.setString('selected_device_model', device.model);
+        await prefs.setBool('selected_device_state', device.state);
+      }
     }
 
     if (!mounted) return;
@@ -188,8 +214,9 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
 
       setState(() {
         _devices = devices;
-        final selectedStillExists = _devices.any((d) => d.id == _selectedDeviceId);
-        if (!selectedStillExists) {
+        final selectedStillExists =
+            _devices.any((d) => d.id == _selectedDeviceId);
+        if (!selectedStillExists && _devices.isNotEmpty) {
           _selectedDeviceId = null;
         }
 
@@ -198,7 +225,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
             : 'Loaded ${devices.length} registered device(s).';
       });
 
-      if (_selectedDeviceId == null) {
+      if (_selectedDeviceId == null && _devices.isNotEmpty) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_selectedDeviceKey);
       }
@@ -496,7 +523,8 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
               child: Text(confirmLabel),
             ),
           ],
@@ -633,8 +661,9 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
               runSpacing: 12,
               children: [
                 FilledButton.icon(
-                  onPressed:
-                      !_bridgeAvailable || _isSavingCredentials ? null : _saveCredentials,
+                  onPressed: !_bridgeAvailable || _isSavingCredentials
+                      ? null
+                      : _saveCredentials,
                   icon: _isSavingCredentials
                       ? const SizedBox(
                           width: 16,
@@ -758,7 +787,8 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
                     await _removeDevice(device);
                   } else if (value == 'select') {
                     await _saveSelectedDevice(device.id);
-                    _setStatus('${device.name} selected for later BCI control.');
+                    _setStatus(
+                        '${device.name} selected for later BCI control.');
                   }
                 },
                 itemBuilder: (_) => const [
@@ -888,16 +918,16 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: _selectedDevice == null ||
-                                  _isTogglingSelected
-                              ? null
-                              : _toggleSelected,
+                          onPressed:
+                              _selectedDevice == null || _isTogglingSelected
+                                  ? null
+                                  : _toggleSelected,
                           icon: _isTogglingSelected
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.bolt),
                           label: const Text('Test Selected'),
@@ -933,54 +963,6 @@ class _AddDeviceResult {
     required this.ip,
   });
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // //===================================================================================
 

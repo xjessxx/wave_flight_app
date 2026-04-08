@@ -2401,35 +2401,52 @@ def run_calibration():
 
 def run_training():
     """Run training with paired REST + MOTOR IMAGERY trials.
-
+ 
     For each of the 20 trials the bridge:
       1. Immediately collects a 1.8 s REST window (no Flutter trigger needed)
       2. Waits for Flutter to signal the animation start
       3. Collects a 1.8 s MOTOR IMAGERY window during the animation
-
+ 
     This gives the LDA classifier both classes to discriminate between.
     """
     global classifier, bci_state, baseline, stream, processor
-
+ 
     if baseline is None:
         print("Error: Baseline not collected — run calibration first")
         bci_state['status'] = 'idle'
         return
-
+ 
     print("\n" + "="*60)
     print("TRAINING DATA COLLECTION")
     print("="*60)
     print(f"Collecting {Config.TRAINING_TRIALS} paired REST + IMAGERY trials")
+    print(f"(2 sets of {Config.TRAINING_TRIALS // 2} with a 60-second break in between)")
     print("="*60 + "\n")
-
+ 
     rest_trials    = []
     imagery_trials = []
-
+ 
+    HALF = Config.TRAINING_TRIALS // 2  # = 20 for 40-trial sessions
+ 
     for trial_num in range(Config.TRAINING_TRIALS):
         bci_state['current_trial'] = trial_num + 1
-
+ 
+        # ── Mid-session break ────────────────────────────────────────────────
+        if trial_num == HALF:
+            print("\n" + "="*60)
+            print("MID-SESSION BREAK")
+            print("="*60)
+            print(f"Completed {HALF}/{Config.TRAINING_TRIALS} trials.")
+            print("Take a 60-second break — relax, blink, stretch.")
+            print("Training will resume automatically.")
+            print("="*60)
+            bci_state['status'] = 'break'
+            time.sleep(60)
+            bci_state['status'] = 'training'
+            print("Break over — resuming training.\n")
+ 
         print(f"\n[Trial {trial_num + 1}/{Config.TRAINING_TRIALS}]")
-
+ 
         # ── Step 1: collect REST window immediately ──────────────────────────
         try:
             print("  Collecting REST window...")
@@ -2441,7 +2458,7 @@ def run_training():
             print(f"  Error collecting REST trial: {e}")
             import traceback; traceback.print_exc()
             continue
-
+ 
         # ── Step 2: wait for Flutter animation trigger ───────────────────────
         print("  Waiting for Flutter animation...")
         wait_start = time.time()
@@ -2450,7 +2467,7 @@ def run_training():
             if time.time() - wait_start > 30:
                 print("  Timeout waiting for trial trigger — skipping")
                 break
-
+ 
         # ── Step 3: collect IMAGERY window ───────────────────────────────────
         if bci_state['status'] == 'collecting_trial':
             print("  Animation started — collecting MOTOR IMAGERY window...")
@@ -2462,28 +2479,28 @@ def run_training():
             except Exception as e:
                 print(f"  Error collecting imagery trial: {e}")
                 import traceback; traceback.print_exc()
-
+ 
             bci_state['status'] = 'training'
         else:
             print("  Training interrupted")
             break
-
+ 
     # ── Train classifier ─────────────────────────────────────────────────────
     paired_count   = min(len(rest_trials), len(imagery_trials))
     rest_trials    = rest_trials[:paired_count]
     imagery_trials = imagery_trials[:paired_count]
     bci_state['current_trial'] = paired_count
-
+ 
     if paired_count >= 10:
         print("\n" + "="*60)
         print("TRAINING CLASSIFIER")
         print("="*60)
         print(f"Using {paired_count} REST + {paired_count} IMAGERY trials")
-
+ 
         try:
             import os
             os.makedirs(Config.LOG_DIR, exist_ok=True)   # ensure dir exists
-
+ 
             classifier    = MIClassifier()
             training_data = prepare_training_data(rest_trials, imagery_trials)
             classifier.train(training_data)
@@ -2496,109 +2513,115 @@ def run_training():
     else:
         print(f"\nNot enough paired trials ({paired_count}/{Config.TRAINING_TRIALS})")
         classifier = None
-
+ 
     bci_state['status'] = 'idle'
     print("\nTraining session complete\n")
-
-
+ 
+ 
 def collect_trial_data(stream, processor, baseline):
-    """Collect EEG data for one trial (1.8 seconds during animation)"""
+    """Collect EEG data for one IMAGERY trial (1.8s)."""
     import time
-    
-    # Clear buffer
-    stream.clear_buffer()
-    
-    # Collect for trial duration
-    duration = 1.8  # shooting phase seconds
-    samples_needed = int(duration * Config.SAMPLING_RATE)
-    
-    print(f"  Collecting {samples_needed} samples ({duration}s)...")
-    
-    c3_data = []
-    c4_data = []
-    
-    start_time = time.time()
-    sample_count = 0
-    
-    while sample_count < samples_needed:
-        data = stream.get_data(1)
-        
-        if data.shape[1] > 0:
-            eeg_ch = stream.eeg_channels
-            c3_data.append(data[eeg_ch[Config.C3_CHANNEL - 1]][0])
-            c4_data.append(data[eeg_ch[Config.C4_CHANNEL - 1]][0])
-            sample_count += 1
-        
-        time.sleep(1 / Config.SAMPLING_RATE)
-        
-        # Timeout safety
-        if time.time() - start_time > duration + 2:
-            print(f"Collection timeout - got {sample_count}/{samples_needed} samples")
-            break
-    
-    print(f"Collected {sample_count} samples")
-    
-    # Convert to numpy arrays
-    c3_signal = np.array(c3_data)
-    c4_signal = np.array(c4_data)
-    
-    # Bandpass filter
-    c3_filtered = processor.bandpass_filter(c3_signal)
-    c4_filtered = processor.bandpass_filter(c4_signal)
-    
-    # Compute psd in mu and beta bands
-    c3_mu_power = processor.compute_psd(c3_filtered, Config.MU_BAND)
-    c3_beta_power = processor.compute_psd(c3_filtered, Config.BETA_BAND)
-    c4_mu_power = processor.compute_psd(c4_filtered, Config.MU_BAND)
-    c4_beta_power = processor.compute_psd(c4_filtered, Config.BETA_BAND)
-    
-    # Compute ERD 
-    c3_mu_erd = processor.compute_erd(c3_mu_power, baseline['c3_mu_power'])
-    c3_beta_erd = processor.compute_erd(c3_beta_power, baseline['c3_beta_power'])
-    c4_mu_erd = processor.compute_erd(c4_mu_power, baseline['c4_mu_power'])
-    c4_beta_erd = processor.compute_erd(c4_beta_power, baseline['c4_beta_power'])
-    
-    return {
-        'c3_mu_erd': c3_mu_erd,
-        'c3_beta_erd': c3_beta_erd,
-        'c4_mu_erd': c4_mu_erd,
-        'c4_beta_erd': c4_beta_erd,
-        'label': 1  # Motor imagery
-    }
 
-def collect_rest_trial_data(stream, processor, baseline):
-    """Collect 1.8 s of REST EEG (no motor imagery)."""
     stream.clear_buffer()
+    time.sleep(0.2)
 
     duration       = 1.8
     samples_needed = int(duration * Config.SAMPLING_RATE)
-    eeg_ch         = stream.eeg_channels
+    print(f"  Collecting {samples_needed} samples ({duration}s)...")
 
-    c3_data, c4_data = [], []
-    start_time       = time.time()
-    sample_count     = 0
+    time.sleep(duration)
 
-    while sample_count < samples_needed:
-        data = stream.get_data(1)
-        if data.shape[1] > 0:
-            c3_data.append(data[eeg_ch[Config.C3_CHANNEL - 1]][0])
-            c4_data.append(data[eeg_ch[Config.C4_CHANNEL - 1]][0])
-            sample_count += 1
-        time.sleep(1 / Config.SAMPLING_RATE)
-        if time.time() - start_time > duration + 2:
-            break
+    data      = stream.board.get_board_data()
+    eeg_ch    = stream.eeg_channels
+    c3_signal = data[eeg_ch[Config.C3_CHANNEL - 1]][-samples_needed:]
+    c4_signal = data[eeg_ch[Config.C4_CHANNEL - 1]][-samples_needed:]
+    sample_count = len(c3_signal)
 
-    c3_signal = np.array(c3_data)
-    c4_signal = np.array(c4_data)
+    print(f"  Collected {sample_count} samples")
 
-    c3_f = processor.bandpass_filter(c3_signal)
-    c4_f = processor.bandpass_filter(c4_signal)
+    # Raw signal diagnostics
+    c3_zeros = np.sum(c3_signal == 0)
+    c4_zeros = np.sum(c4_signal == 0)
+    print(f"  [DEBUG IMAGERY] C3 raw  mean: {c3_signal.mean():.2f}  std: {c3_signal.std():.2f}  zeros: {c3_zeros}/{sample_count}")
+    print(f"  [DEBUG IMAGERY] C4 raw  mean: {c4_signal.mean():.2f}  std: {c4_signal.std():.2f}  zeros: {c4_zeros}/{sample_count}")
+    if c3_zeros > sample_count * 0.2 or c4_zeros > sample_count * 0.2:
+        print("  WARNING: >20% zero samples - possible electrode dropout or buffer underrun")
+    if c3_signal.std() < 0.5 or c4_signal.std() < 0.5:
+        print("  WARNING: Signal std very low - possible flat/saturated signal")
+
+    c3_filtered = processor.preprocess(c3_signal)
+    c4_filtered = processor.preprocess(c4_signal)
+
+    c3_mu_power   = processor.compute_psd(c3_filtered, Config.MU_BAND)
+    c3_beta_power = processor.compute_psd(c3_filtered, Config.BETA_BAND)
+    c4_mu_power   = processor.compute_psd(c4_filtered, Config.MU_BAND)
+    c4_beta_power = processor.compute_psd(c4_filtered, Config.BETA_BAND)
+
+    c3_mu_erd   = processor.compute_erd(c3_mu_power,   baseline['c3_mu_power'])
+    c3_beta_erd = processor.compute_erd(c3_beta_power, baseline['c3_beta_power'])
+    c4_mu_erd   = processor.compute_erd(c4_mu_power,   baseline['c4_mu_power'])
+    c4_beta_erd = processor.compute_erd(c4_beta_power, baseline['c4_beta_power'])
+
+    print(f"  [DEBUG IMAGERY] C3  mu_pwr: {c3_mu_power:.2f}  beta_pwr: {c3_beta_power:.2f}"
+          f"  (baseline  mu: {baseline['c3_mu_power']:.2f}  beta: {baseline['c3_beta_power']:.2f})")
+    print(f"  [DEBUG IMAGERY] C4  mu_pwr: {c4_mu_power:.2f}  beta_pwr: {c4_beta_power:.2f}"
+          f"  (baseline  mu: {baseline['c4_mu_power']:.2f}  beta: {baseline['c4_beta_power']:.2f})")
 
     return {
-        'c3_mu_erd':   processor.compute_erd(processor.compute_psd(c3_f, Config.MU_BAND),   baseline['c3_mu_power']),
-        'c3_beta_erd': processor.compute_erd(processor.compute_psd(c3_f, Config.BETA_BAND), baseline['c3_beta_power']),
-        'c4_mu_erd':   processor.compute_erd(processor.compute_psd(c4_f, Config.MU_BAND),   baseline['c4_mu_power']),
-        'c4_beta_erd': processor.compute_erd(processor.compute_psd(c4_f, Config.BETA_BAND), baseline['c4_beta_power']),
+        'c3_mu_erd':   c3_mu_erd,
+        'c3_beta_erd': c3_beta_erd,
+        'c4_mu_erd':   c4_mu_erd,
+        'c4_beta_erd': c4_beta_erd,
+        'label': 1,
+    }
+
+def collect_rest_trial_data(stream, processor, baseline):
+    """Collect 1.8s of REST EEG (no motor imagery)."""
+    import time
+
+    stream.clear_buffer()
+    time.sleep(0.2)
+
+    duration       = 1.8
+    samples_needed = int(duration * Config.SAMPLING_RATE)
+    print(f"  Collecting {samples_needed} samples ({duration}s)...")
+
+    time.sleep(duration)
+
+    data      = stream.board.get_board_data()
+    eeg_ch    = stream.eeg_channels
+    c3_signal = data[eeg_ch[Config.C3_CHANNEL - 1]][-samples_needed:]
+    c4_signal = data[eeg_ch[Config.C4_CHANNEL - 1]][-samples_needed:]
+    sample_count = len(c3_signal)
+
+    print(f"  Collected {sample_count} samples")
+
+    # Raw signal diagnostics
+    c3_zeros = np.sum(c3_signal == 0)
+    c4_zeros = np.sum(c4_signal == 0)
+    print(f"  [DEBUG REST]    C3 raw  mean: {c3_signal.mean():.2f}  std: {c3_signal.std():.2f}  zeros: {c3_zeros}/{sample_count}")
+    print(f"  [DEBUG REST]    C4 raw  mean: {c4_signal.mean():.2f}  std: {c4_signal.std():.2f}  zeros: {c4_zeros}/{sample_count}")
+    if c3_zeros > sample_count * 0.2 or c4_zeros > sample_count * 0.2:
+        print("  WARNING: >20% zero samples - possible electrode dropout or buffer underrun")
+    if c3_signal.std() < 0.5 or c4_signal.std() < 0.5:
+        print("  WARNING: Signal std very low - possible flat/saturated signal")
+
+    c3_f = processor.preprocess(c3_signal)
+    c4_f = processor.preprocess(c4_signal)
+
+    c3_mu_erd   = processor.compute_erd(processor.compute_psd(c3_f, Config.MU_BAND),   baseline['c3_mu_power'])
+    c3_beta_erd = processor.compute_erd(processor.compute_psd(c3_f, Config.BETA_BAND), baseline['c3_beta_power'])
+    c4_mu_erd   = processor.compute_erd(processor.compute_psd(c4_f, Config.MU_BAND),   baseline['c4_mu_power'])
+    c4_beta_erd = processor.compute_erd(processor.compute_psd(c4_f, Config.BETA_BAND), baseline['c4_beta_power'])
+
+    print(f"  [DEBUG REST]    C3  mu_pwr: {processor.compute_psd(c3_f, Config.MU_BAND):.2f}  beta_pwr: {processor.compute_psd(c3_f, Config.BETA_BAND):.2f}"
+          f"  (baseline  mu: {baseline['c3_mu_power']:.2f}  beta: {baseline['c3_beta_power']:.2f})")
+
+    return {
+        'c3_mu_erd':   c3_mu_erd,
+        'c3_beta_erd': c3_beta_erd,
+        'c4_mu_erd':   c4_mu_erd,
+        'c4_beta_erd': c4_beta_erd,
         'label': 0,
     }
 

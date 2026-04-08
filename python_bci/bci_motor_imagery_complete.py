@@ -62,7 +62,7 @@ class Config:
     # === Hardware Selection ===
     # Options: BoardIds.CYTON_BOARD, BoardIds.SYNTHETIC_BOARD
     BOARD_ID = BoardIds.NEUROPAWN_KNIGHT_BOARD # Change when hardware arrives
-    SERIAL_PORT = 'COM3' # '/dev/ttyUSB0'  # Windows: 'COM3', Mac: '/dev/cu.usbserial-*'
+    SERIAL_PORT = 'COM5' # '/dev/ttyUSB0'  # Windows: 'COM3', Mac: '/dev/cu.usbserial-*'
     NUM_CHANNELS = 8 
 
     # === EEG Channels ===
@@ -77,16 +77,16 @@ class Config:
     
     MU_BAND = (8, 12)     # Hz - sensorimotor rhythm
     BETA_BAND = (13, 30)  # Hz - motor-related beta
-    WELCH_NPERSEG = 250   # 2 seconds at 125 Hz
+    WELCH_NPERSEG = 128   # must be <= trial window (225 samples at 125Hz x 1.8s)
     
     # === Baseline Calibration ===
     BASELINE_DURATION = 60  # seconds (30-60 recommended)
     
     # === Training Protocol ===
-    TRAINING_TRIALS = 20     # trials per class (20-40 recommended)
+    TRAINING_TRIALS = 40     # trials per class (20-40 recommended)
     TRIAL_DURATION = 4.0     # seconds per trial
     REST_DURATION = 3.0      # seconds between trials
-    CUE_DELAY = 1.0          # seconds before motor imagery starts
+    CUE_DELAY = 0          # seconds before motor imagery starts
     
     # === Real-Time Detection ===
     WINDOW_DURATION = 2.0    # seconds

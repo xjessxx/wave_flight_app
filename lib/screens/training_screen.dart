@@ -1,11 +1,7 @@
-
-
 // import 'package:flutter/material.dart';
 // import 'package:wave_flight_app/services/bci_service.dart';
 // import 'dart:async';
 // import 'package:http/http.dart' as http;
-
-// // TODO: make devices page
 
 // class TrainingScreen extends StatefulWidget {
 //   const TrainingScreen({super.key});
@@ -887,7 +883,11 @@ class _TrainingScreenState extends State<TrainingScreen>
 
   int _countdownNumber = 3;
   int _currentTrial = 0;
-  final int _totalTrials = 20;
+  final int _totalTrials = 40;
+  static const int _breakAfterTrial = 20; // mid-session break point
+  bool _onBreak = false;
+  int _breakSecondsRemaining = 60;
+  Timer? _breakTimer;
 
   Timer? _countdownTimer;
   Timer? _restTimer;
@@ -911,9 +911,14 @@ class _TrainingScreenState extends State<TrainingScreen>
         });
 
         if (_trainingActive && _currentTrial < _totalTrials) {
-          _restTimer = Timer(const Duration(seconds: 3), () {
-            _runNextTrial();
-          });
+          // Check if we just finished the first half — trigger break
+          if (_currentTrial == _breakAfterTrial) {
+            _startMidSessionBreak();
+          } else {
+            _restTimer = Timer(const Duration(seconds: 3), () {
+              _runNextTrial();
+            });
+          }
         } else if (_currentTrial >= _totalTrials) {
           Future.delayed(const Duration(seconds: 2), () {
             _onTrainingComplete();
@@ -934,6 +939,7 @@ class _TrainingScreenState extends State<TrainingScreen>
     _bciService.stopDetection();
     _countdownTimer?.cancel();
     _restTimer?.cancel();
+    _breakTimer?.cancel();
     super.dispose();
   }
 
@@ -958,7 +964,8 @@ class _TrainingScreenState extends State<TrainingScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.psychology, size: 60, color: Color(0xFF4A90E2)),
+                const Icon(Icons.psychology,
+                    size: 60, color: Color(0xFF4A90E2)),
                 const SizedBox(height: 16),
                 const Text(
                   'Thumb Movement Detection',
@@ -975,24 +982,28 @@ class _TrainingScreenState extends State<TrainingScreen>
                   decoration: BoxDecoration(
                     color: Colors.grey[900],
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF4A90E2), width: 2),
+                    border:
+                        Border.all(color: const Color(0xFF4A90E2), width: 2),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildInstructionItem(
                         icon: Icons.self_improvement,
-                        text: 'Make sure you are in a calm and quiet environment',
+                        text:
+                            'Make sure you are in a calm and quiet environment',
                       ),
                       const SizedBox(height: 12),
                       _buildInstructionItem(
                         icon: Icons.timer,
-                        text: 'After the countdown, imagine moving your thumb once to swipe the ball',
+                        text:
+                            'After the countdown, imagine moving your thumb once to swipe the ball',
                       ),
                       const SizedBox(height: 12),
                       _buildInstructionItem(
                         icon: Icons.repeat,
-                        text: 'The ball will launch automatically, but it is important you imagine each time',
+                        text:
+                            'The ball will launch automatically, but it is important you imagine each time',
                       ),
                     ],
                   ),
@@ -1067,6 +1078,33 @@ class _TrainingScreenState extends State<TrainingScreen>
         ),
       );
     }
+  }
+
+  void _startMidSessionBreak() {
+    setState(() {
+      _onBreak = true;
+      _breakSecondsRemaining = 60;
+    });
+
+    _breakTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _breakSecondsRemaining--;
+      });
+
+      if (_breakSecondsRemaining <= 0) {
+        timer.cancel();
+        setState(() {
+          _onBreak = false;
+        });
+        _restTimer = Timer(const Duration(seconds: 1), () {
+          _runNextTrial();
+        });
+      }
+    });
   }
 
   void _runNextTrial() {
@@ -1153,7 +1191,8 @@ class _TrainingScreenState extends State<TrainingScreen>
           ],
         ),
         content: Text(
-          'Successfully collected $_currentTrial trials!\n\n'
+          'Successfully collected $_currentTrial trials '
+          '(2 sets of ${_totalTrials ~/ 2})!\n\n'
           'Your classifier has been trained.\n\n'
           'The system can now attempt to detect your motor imagery in real-time.',
           style: const TextStyle(color: Colors.white70, fontSize: 16),
@@ -1398,7 +1437,9 @@ class _TrainingScreenState extends State<TrainingScreen>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    _countdownNumber > 0 ? '$_countdownNumber' : 'GO',
+                                    _countdownNumber > 0
+                                        ? '$_countdownNumber'
+                                        : 'GO',
                                     style: TextStyle(
                                       fontSize: _countdownNumber == 0 ? 56 : 80,
                                       fontWeight: FontWeight.bold,
@@ -1460,7 +1501,8 @@ class _TrainingScreenState extends State<TrainingScreen>
                 final fallProgress = (animationProgress - 0.55) / 0.45;
                 final topPosition = screenHeight - 50;
 
-                ballBottom = topPosition - (fallProgress * (topPosition - idleBallBottom));
+                ballBottom = topPosition -
+                    (fallProgress * (topPosition - idleBallBottom));
                 ballScale = 1.0;
 
                 shadowOpacity = 0.1 + (fallProgress * 0.4);
@@ -1528,7 +1570,8 @@ class _TrainingScreenState extends State<TrainingScreen>
                       bottom: 300,
                       child: Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 16),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.8),
                             borderRadius: BorderRadius.circular(30),
@@ -1564,7 +1607,8 @@ class _TrainingScreenState extends State<TrainingScreen>
               bottom: 30,
               right: 30,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(30),
@@ -1585,6 +1629,105 @@ class _TrainingScreenState extends State<TrainingScreen>
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+
+          // Trial counter (top-left)
+          if (_trainingActive)
+            Positioned(
+              top: 48,
+              left: 20,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white24, width: 1),
+                ),
+                child: Text(
+                  'Trial $_currentTrial / $_totalTrials',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+
+          // Mid-session break overlay
+          if (_onBreak)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.85),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.self_improvement,
+                        size: 64,
+                        color: Color(0xFF4A90E2),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Halfway There!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Take a short break.\nRelax, blink, and breathe.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: 120,
+                        height: 120,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              value: _breakSecondsRemaining / 60.0,
+                              strokeWidth: 6,
+                              backgroundColor: Colors.white12,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Color(0xFF4A90E2),
+                              ),
+                            ),
+                            Text(
+                              '$_breakSecondsRemaining',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Second set starts in $_breakSecondsRemaining seconds',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
