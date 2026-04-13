@@ -59,7 +59,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
     final savedBridgeUrl = prefs.getString(_bridgeUrlKey) ??
         const String.fromEnvironment(
           'KASA_BRIDGE_URL',
-          defaultValue: 'http://127.0.0.1:5273',
+          defaultValue: 'http://localhost:5273',
         );
     final savedSelectedDeviceId = prefs.getString(_selectedDeviceKey);
 
@@ -138,7 +138,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
             KasaDevice(
               id: 'mock_device',
               name: 'Mock Lamp',
-              ip: '127.0.0.1',
+              ip: 'localhost',
               model: 'Mock Plug',
               state: false,
             ),
@@ -464,7 +464,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
                     controller: ipController,
                     decoration: const InputDecoration(
                       labelText: 'IP address',
-                      hintText: '192.168.1.35',
+                      hintText: '<device-ip>',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -512,7 +512,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
                 controller: controller,
                 decoration: const InputDecoration(
                   labelText: 'Device IP',
-                  hintText: '192.168.1.35',
+                  hintText: '<device-ip>',
                 ),
               ),
             ],
@@ -579,7 +579,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
               controller: _bridgeUrlController,
               decoration: const InputDecoration(
                 labelText: 'Bridge URL',
-                hintText: 'http://127.0.0.1:5273',
+                hintText: 'http://localhost:5273',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -615,7 +615,7 @@ class _DeviceControlScreenState extends State<DeviceControlScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'For desktop testing use localhost. For phone testing on the same Wi-Fi, use your computer’s LAN IP like http://192.168.1.xxx:5273.',
+              'For desktop testing use localhost. For phone testing on the same Wi-Fi, use your computer\'s LAN address and port 5273.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
@@ -1023,7 +1023,7 @@ class _AddDeviceResult {
 //           KasaDevice(
 //             id: 'mock_plug',
 //             name: 'Mock Desk Lamp',
-//             ip: '127.0.0.1',
+//             ip: 'localhost',
 //             model: 'Mock Plug',
 //             state: false,
 //           ),
@@ -1041,7 +1041,7 @@ class _AddDeviceResult {
 //     try {
 //       final available = await _kasa.bridgeAvailable();
 //       if (!available) {
-//         throw Exception('Local Kasa bridge is not running on http://127.0.0.1:5273');
+//         throw Exception('Local Kasa bridge is not running on http://localhost:5273');
 //       }
 
 //       final devices = await _kasa.discoverDevices();
@@ -1223,7 +1223,7 @@ class _AddDeviceResult {
 //                     controller: ipController,
 //                     decoration: const InputDecoration(
 //                       labelText: 'IP address',
-//                       hintText: '192.168.1.35',
+//                       hintText: '<device-ip>',
 //                     ),
 //                   ),
 //                   const SizedBox(height: 12),

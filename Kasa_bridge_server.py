@@ -369,7 +369,7 @@
 #         "ok":                    True,
 #         "credentialsConfigured": _credentials_configured(),
 #         "hasStoredUsername":     bool(str(CONFIG.get("kasa_username", "")).strip()),
-#         "bridgeUrlHint":         f"http://127.0.0.1:{PORT}",
+#         "bridgeUrlHint":         f"http://localhost:{PORT}",
 #         "deviceCount":           len(DEVICES),
 #     })
 
@@ -515,11 +515,11 @@
 # # ---------------------------------------------------------------------------
 
 # if __name__ == "__main__":
-#     print(f"Kasa Bridge  : http://127.0.0.1:{PORT}")
+#     print(f"Kasa Bridge  : http://localhost:{PORT}")
 #     print(f"API mode     : {KASA_API}")
 #     print(f"Credentials  : {'configured' if _credentials_configured() else 'NOT set'}")
 #     print(f"Devices      : {len(DEVICES)} registered")
-#     app.run(host="127.0.0.1", port=PORT, debug=False)
+#     app.run(host="localhost", port=PORT, debug=False)
 
 
 #==========================================================

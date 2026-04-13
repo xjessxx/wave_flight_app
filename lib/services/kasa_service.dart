@@ -69,7 +69,7 @@
 // //       : _baseUrl = baseUrl ??
 // //             const String.fromEnvironment(
 // //               'KASA_BRIDGE_URL',
-// //               defaultValue: 'http://127.0.0.1:5273',
+// //               defaultValue: 'http://localhost:5273',
 // //             );
 
 // //   final String _baseUrl;
@@ -215,7 +215,7 @@
 //   KasaSmartPlugService({String? baseUrl})
 //       : _baseUrl = baseUrl ?? const String.fromEnvironment(
 //           'KASA_BRIDGE_URL',
-//           defaultValue: 'http://127.0.0.1:5273',
+//           defaultValue: 'http://localhost:5273',
 //         );
 
 //   final String _baseUrl;

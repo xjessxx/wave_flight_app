@@ -284,7 +284,7 @@
 //       try {
 //         final response = await http.post(
 //           Uri.parse(
-//               'http://10.0.2.2:5000/training/trial_start'), // Android emulator ip - to b changed to real phone eventually
+//               'http://localhost:5000/training/trial_start'),
 //         );
 
 //         if (response.statusCode == 200) {

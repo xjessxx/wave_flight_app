@@ -58,12 +58,12 @@
 //     final kasaBridgeUrl = prefs.getString(_kasaBridgeUrlKey) ??
 //         const String.fromEnvironment(
 //           'KASA_BRIDGE_URL',
-//           defaultValue: 'http://127.0.0.1:5273',
+//           defaultValue: 'http://localhost:5273',
 //         );
 //     final bciBridgeUrl = prefs.getString(_bciBridgeUrlKey) ??
 //         const String.fromEnvironment(
 //           'BCI_BRIDGE_URL',
-//           defaultValue: 'http://127.0.0.1:5000',
+//           defaultValue: 'http://localhost:5000',
 //         );
 
 //     _selectedDeviceId = prefs.getString(_selectedDeviceKey);
@@ -303,7 +303,7 @@
 //                     controller: _bciUrlController,
 //                     decoration: const InputDecoration(
 //                       labelText: 'BCI bridge URL',
-//                       hintText: 'http://127.0.0.1:5000',
+//                       hintText: 'http://localhost:5000',
 //                       border: OutlineInputBorder(),
 //                     ),
 //                   ),
@@ -560,12 +560,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final kasaBridgeUrl = prefs.getString(_kasaBridgeUrlKey) ??
         const String.fromEnvironment(
           'KASA_BRIDGE_URL',
-          defaultValue: 'http://127.0.0.1:5273',
+          defaultValue: 'http://localhost:5273',
         );
     final bciBridgeUrl = prefs.getString(_bciBridgeUrlKey) ??
         const String.fromEnvironment(
           'BCI_BRIDGE_URL',
-          defaultValue: 'http://127.0.0.1:5000',
+          defaultValue: 'http://localhost:5000',
         );
 
     _selectedDeviceId = prefs.getString(_selectedDeviceKey);
@@ -888,7 +888,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     controller: _bciUrlController,
                     decoration: const InputDecoration(
                       labelText: 'BCI bridge URL',
-                      hintText: 'http://127.0.0.1:5000',
+                      hintText: 'http://localhost:5000',
                       border: OutlineInputBorder(),
                     ),
                   ),

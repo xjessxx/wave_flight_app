@@ -38,7 +38,7 @@ class BCIService {
 
   String _baseUrl = const String.fromEnvironment(
     'BCI_BRIDGE_URL',
-    defaultValue: 'http://127.0.0.1:5000',
+    defaultValue: 'http://localhost:5000',
   );
 
   Timer? _pollTimer;
