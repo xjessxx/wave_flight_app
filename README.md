@@ -329,8 +329,7 @@ This project implements methods from **Chapter 3: Motor Imagery Classification**
 
 ## License
 
-#TODO!
-[Add license information here - MIT, GPL, etc.]
+This project is licensed under the MIT License
 
 ---
 
