@@ -135,74 +135,7 @@ class BCIService {
       }
     });
   }
-//   // ========== CALIBRATION ==========
 
-//   /// Start baseline calibration (60 seconds)
-//   Future<bool> startCalibration() async {
-//     try {
-//       final response = await http.post(
-//         Uri.parse('$baseUrl/calibration/start'),
-//       );
-
-//       if (response.statusCode == 200) {
-//         print('Calibration started');
-//         _startCalibrationPolling();
-//         return true;
-//       } else {
-//         print('Failed to start calibration: ${response.body}');
-//         return false;
-//       }
-//     } catch (e) {
-//       print('Calibration error: $e');
-//       return false;
-//     }
-//   }
-
-//   // Poll calibration progress
-//   void _startCalibrationPolling() {
-//   _pollTimer?.cancel();
-
-//   _pollTimer = Timer.periodic(
-//     const Duration(milliseconds: 500),
-//     (timer) async {
-//       try {
-//         final response = await http.get(
-//           Uri.parse('$baseUrl/calibration/progress'),
-//         );
-
-//         if (response.statusCode != 200) return;
-
-//         final data = json.decode(response.body);
-//         final progress = data['progress'] as int;
-//         final status = data['status'] as String;
-
-//         onCalibrationProgress?.call(progress);
-
-//         // STOP polling unless actively calibrating
-//         if (status != 'calibrating') {
-//           timer.cancel();
-//           _pollTimer = null;
-//         }
-//       } catch (_) {
-//         timer.cancel();
-//         _pollTimer = null;
-//       }
-//     },
-//   );
-// }
-
-
-//   Future<Map<String, dynamic>> getCalibrationStatus() async {
-//     final response = await http.get(
-//       Uri.parse('$baseUrl/calibration/status'),
-//     );
-
-//     if (response.statusCode != 200) {
-//       throw Exception('Failed to get calibration status');
-//     }
-
-//     return jsonDecode(response.body);
-//   }
   Future<bool> startTraining() async {
     try {
       final response = await http.post(_uri('/training/start')).timeout(
