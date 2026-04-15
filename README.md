@@ -6,7 +6,7 @@ A research-based Flutter + Python application that enables users to control smar
 
 ---
 
-## 🧠 Overview
+## Overview
 
 WaveFlight implements real-time motor imagery classification on the NeuroPawn EEG headset. After a brief calibration and training phase, users can trigger smart home actions by imagining hand movements, detected with high confidence through event-related desynchronization (ERD) analysis.
 
@@ -93,7 +93,7 @@ Flutter App → HTTP → Kasa Bridge → Kasa Cloud API → Smart Plugs
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone & Install
 
@@ -235,7 +235,7 @@ Adjust for your EEG setup:
 ```python
 class Config:
     BOARD_ID = BoardIds.NEUROPAWN_KNIGHT_BOARD  # or SYNTHETIC_BOARD for testing
-    SERIAL_PORT = 'COM5'                        # Windows: COM3, Mac: /dev/cu.usbserial-*
+    SERIAL_PORT = 'COM5'                        # Windows: COM5, Mac: /dev/cu.usbserial-*
     NUM_CHANNELS = 8                            # Depends on your headset
     SAMPLING_RATE = 125                         # Hz
     BASELINE_DURATION = 60                      # seconds
@@ -354,7 +354,7 @@ A: Yes! Set `BOARD_ID = BoardIds.SYNTHETIC_BOARD` in `bci_motor_imagery_complete
 A: No. Set `enableFirebaseAuth = false` in `lib/main.dart` for demo mode.
 
 **Q: How accurate is the motor imagery classification?**  
-A: With proper calibration and training, expects 70-85% accuracy after 40 trials. Individual variation is significant.
+A: With proper calibration and training, expects 60-70% accuracy after 40 trials. Individual variation is significant.
 
 **Q: Can I use other EEG headsets?**  
 A: Yes, if supported by BrainFlow (OpenBCI, Cyton, etc.). Update `Config.BOARD_ID` and adjust channel mappings.
