@@ -12,7 +12,7 @@ WaveFlight implements real-time motor imagery classification on the NeuroPawn EE
 
 **Based on:** Research in motor imagery BCI classification (see references)
 
-### 🧠 Neuroethics & Responsible Innovation
+### Neuroethics & Responsible Innovation
 
 This project emphasizes the critical importance of **neuroethics in neurotech development**. As brain-computer interfaces increasingly integrate with consumer applications, responsible design practices are essential. WaveFlight prioritizes user privacy (EEG data processed locally, never stored externally), informed consent, and individual autonomy in BCI interactions. We believe that accessibility technologies must be developed with careful consideration of cognitive rights, data protection, and equitable access—ensuring that motor imagery BCIs benefit all users, not just those with resources, while maintaining ethical standards that protect neurological data as the deeply personal information it represents.
 
